@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$project_dir"
+
+npm ci
+printf '\nLittle Island is ready. Run: %s/bin/dev\n' "$project_dir"

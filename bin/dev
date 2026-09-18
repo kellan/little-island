@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$project_dir"
+
+if [ ! -x node_modules/.bin/vite ]; then
+  printf 'Dependencies are missing. Run %s/bin/setup first.\n' "$project_dir" >&2
+  exit 1
+fi
+
+exec npm run dev -- --port "${PORT:-5173}"
