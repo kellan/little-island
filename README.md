@@ -45,3 +45,7 @@ The single villager and island state save to localStorage every five seconds, on
 ## Scope and next-step notes
 
 One villager, finite trees, one timber stockpile. No buildings, needs, production chains or additional villagers. Time of day is fixed; trees do not regrow. The simulation persists data, not Three.js objects. Inspiration: Outlanders 2 and The Settlers 2 for calm readable work, Timberborn for physical resource movement, Widelands for future economic thinking, SlimCity for web architecture, and Three.js Game for small examples. No source code or art is copied from those games.
+
+## Technical proving ground
+
+Run `bin/stress` to open the browser benchmark. It can scale an instanced forest to 50,000 trees, simulate up to 5,000 lightweight workers, burst-retarget paths, measure raycast picking, and verify deterministic JSON save/load. See [docs/STRESS_TESTING.md](docs/STRESS_TESTING.md) for scenarios, budgets, and the first measurements.
