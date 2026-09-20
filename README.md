@@ -118,6 +118,8 @@ vocabulary is at the top of [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
 
 The rulebook, the tick, the command and event vocabulary, the save format and the known gaps are documented in [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
 
+Where production is going — foraging, depletion, multi-input recipes, upkeep and farms, and the one abstraction that covers them — is in [docs/PRODUCTION.md](docs/PRODUCTION.md), replying to the design brief in [docs/RESOURCES.md](docs/RESOURCES.md).
+
 The convex mainland permits direct walking paths without navigation machinery; decorative tree foliage is not a path obstacle in this deliberately narrow prototype. There are no buildings, needs, production chains, networking or backend.
 
 ## Play and previews
