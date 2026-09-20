@@ -179,6 +179,29 @@ Do not build the whole table. A defensible first increment:
 That exercises the three sinks, the upkeep draw, depletion-and-regrowth, and the
 data-driven recipe table without committing to soil, seasons, metal, or trade.
 
+## Parked: coppice, and settlement skill
+
+Not for now, but on the roadmap and worth not designing around.
+
+**Coppice** is a woodland cut on rotation: fell a hazel or ash at the base and it does
+not die, it throws up a stand of poles that is re-cut every 7-15 years, indefinitely. A
+coppice yields firewood and poles forever but never yields a timber log. High forest
+yields timber, slowly.
+
+The reason it is interesting here is that it splits "forest" into two distinct land uses
+and gives the firewood tax a landscape of its own. The player stops asking "how much
+woodland do I have" and starts asking "what kind of woodland am I keeping".
+
+**It is gated on a concept the game does not have yet: settlement skill.** Coppicing is
+something a settlement gets *better at* — it should arrive as forestry practice matures,
+not as a building unlocked by paying planks. There is no progression or skill model in
+the design at all right now, and inventing one just to justify coppice would be the tail
+wagging the dog.
+
+So: park it. When a settlement-skill concept does exist, coppice is the first thing to
+hang off it. Until then, do not build forest state that would make the split impossible
+to add later — a single global "trees remaining" count would.
+
 ## Explicitly out of scope right now
 
 - Combat, weapons, raiding.
