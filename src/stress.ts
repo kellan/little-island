@@ -5,6 +5,7 @@ import { createStressWorld, deserializeStress, hashStress, retarget, serializeSt
 import { FrameMetrics } from './frame-metrics';
 import { advance, createAccumulator } from './timestep';
 import { disposeObject } from './dispose';
+import { count } from './lab-query';
 document.title = 'Little Island — technical proving ground';
 
 type Settings = { trees:number; agents:number; shadows:boolean; paused:boolean; autoOrbit:boolean };
@@ -14,8 +15,7 @@ const presets: Record<string, Pick<Settings,'trees'|'agents'>> = {
   render:{trees:25000,agents:50}, agents:{trees:1000,agents:1000}, balanced:{trees:10000,agents:500}, soak:{trees:5000,agents:500}
 };
 const selectedPreset = presets[scenario] ?? presets.balanced;
-const clamp=(value:string|null,fallback:number,max:number)=>Math.max(0,Math.min(max,Number(value) || fallback));
-const settings:Settings={trees:clamp(query.get('trees'),selectedPreset.trees,50000),agents:clamp(query.get('agents'),selectedPreset.agents,5000),shadows:query.get('shadows')==='1',paused:false,autoOrbit:true};
+const settings:Settings={trees:count(query.get('trees'),selectedPreset.trees,50000),agents:count(query.get('agents'),selectedPreset.agents,5000),shadows:query.get('shadows')==='1',paused:false,autoOrbit:true};
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
 <main class="lab-shell"><canvas id="lab-world"></canvas>

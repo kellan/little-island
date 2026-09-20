@@ -23,6 +23,8 @@ Counts can be reproduced in the URL:
 ?lab&scenario=balanced&trees=10000&agents=500
 ```
 
+Zero is a real count: `?lab&trees=0&agents=0` draws water and island only, in two calls, which is the baseline to attribute every other measurement against.
+
 ## What it measures
 
 - FPS, p95 and worst frame time over rolling one-second samples, from real elapsed time
