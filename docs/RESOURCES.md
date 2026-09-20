@@ -108,9 +108,31 @@ four at once is normal, not a sign it failed to upgrade.
    with no "you may not" message, and it makes walking distance the cost — which the
    existing simulation already models well.
 
-2. **Fishing — steady, water-locked.** Pier or hut, plus a net. Best yield per worker of
-   the early options. The stock is a shared pool that depletes under pressure and recovers
-   when rested; overfishing should be possible *and recoverable*, legible on the map.
+2. **Fishing — steady, water-locked, and two different verbs.** The stock is a shared
+   pool that depletes under pressure and recovers when rested; overfishing should be
+   possible *and recoverable*, legible on the map. Two structures, which are **not
+   tiers** — a settlement wants both:
+
+   - **Fish weir** — a stake-and-wattle trap set in a channel. It fishes whether or not
+     anyone is there. No labor to run, low yield, and **capped**: once full it stops, and
+     the surplus is lost. Placement is restricted to rare sites (river mouth, tidal
+     narrows). Cost `log x2, reed x6`, no tool. Buildable on day one, before a sawpit
+     exists — the one piece of food infrastructure a settlement with nothing can raise.
+   - **Fishing pier** — active. Higher yield, scales with workers, but costs a villager's
+     whole day. Cost `plank x6, log x2, cordage x4`, plus a **net** (`cordage x3`). Sits
+     behind a sawpit and a cordage source, so it is a real tech step rather than a free
+     upgrade.
+
+   The weir is insurance; the pier is production. The weir keeps a settlement alive during
+   the week everyone is busy building, and it never becomes obsolete because it never
+   costs labor. Note the pressures differ in kind: forage degrades into **walking time**,
+   the weir degrades into **waste**. Neither is a failure message.
+
+   Weirs are tidal. If a clock ever lands, "empty at low tide" gives them a daily rhythm
+   for free. Do not require it.
+
+   Later, the weir's stakes become *poles* from coppice rather than whole logs — a small
+   efficiency that gives coppice something to do the day it arrives.
 
 3. **Hunting — forest-coupled.** Lodge plus snares and traps. Game population is a
    function of standing forest: clear-cut the woods for planks and the deer leave. First
@@ -124,6 +146,25 @@ Hunting and fishing are **distinct systems**, not one "protein" building with tw
 categories (forage / protein / grain / dairy) is worth more than the same calories from
 one source. This is the Outlanders 2 mechanic and it is worth keeping: it is what stops
 the player from solving food once and forgetting it.
+
+## Cooking, and why forage is really the floor
+
+Split food goods by preparation:
+
+- **Eat raw** — berries, fruit, nuts, milk, some roots. Zero infrastructure. This is why
+  foraging is the baseline: not merely weak, but the only food that needs *nothing at all*.
+- **Must cook** — fish, meat, grain, most vegetables. Requires a **hearth** and
+  **firewood**.
+
+So the food ladder and the firewood tax are the same problem. The moment a settlement
+graduates from berries to fish, it has signed up for fuel — gathered off the forest floor
+early, and later logs through a wood chopper. That is a ladder rung with a cost attached
+rather than just a bigger number.
+
+It also gives meal variety a physical home. Raw forage can be eaten where it is picked; a
+*proper meal* is assembled at the hearth from several categories, and the hearth burns
+firewood every day it runs. The first hearth is therefore a real milestone: before it, the
+settlement eats cold berries, survives, and does not grow.
 
 ## Farming, and why it needs logic
 
@@ -154,6 +195,69 @@ clock goes in from the start is an open question put to the user and **not yet a
 Do not assume it either way — if the engine can be built so the clock is addable later
 without a rewrite, that is the safest path.
 
+## How goods reach the buildings that consume them
+
+**Default: pull.** A building's stationed worker fetches its own inputs. Nobody delivers
+to them.
+
+The cook is the worked example. The hearth needs fish (or meat, or crops) and firewood, and
+the cook is the one who goes and gets both — walks to the weir, walks to the woodpile,
+walks back, cooks. The entire food chain is **one visible loop performed by one person**,
+which is the thing this prototype already does well with Robin and a log, scaled up rather
+than replaced by stockpile arithmetic.
+
+What this buys:
+
+- **Placement becomes the gameplay.** A hearth far from water and far from woods means the
+  cook spends the day walking and produces two meals. Throughput degrades smoothly with
+  distance — no error state, no "missing input" message, just a curve the player can read
+  by watching.
+- **No hauler concept is needed to ship the first version.** That is a large simplification.
+
+### Fetch a load, not an ingredient
+
+Required, or the model is pathological: a cook who walks to the weir once per meal makes
+the pacing absurd. The worker fetches a **load** — N fish — and works through it.
+
+This gives a readable batch-trip rhythm, and it makes **carry capacity a real number**.
+Carry capacity is in turn what later justifies baskets, pots, barrels, and a handcart, so
+the container goods get a job rather than existing for their own sake.
+
+### Firewood breaks it first, and that is the design
+
+Pull works well at three buildings and strains as the settlement grows. The useful part is
+*where* it strains: **firewood**, because it is the one good that nearly everything
+consumes. Food inputs are specific to the cook; firewood is universal. So the failure is
+localized and legible:
+
+1. **Cook fetches everything.** Fine at small scale.
+2. **Firewood breaks it** — five buildings sending workers to the same forest floor for the
+   same good, crossing paths all day.
+3. **Build a woodpile** (local store) and someone stocks it. That someone is the first
+   hauler.
+
+Logistics then arrives as the solution to a problem the player has *felt*, instead of as a
+system handed over in a tutorial. This costs nothing now: simply do not build haulers yet,
+and let the strain happen.
+
+### What errands are actually for
+
+An earlier draft of this brief claimed the fish weir proved a need for an errand queue.
+That was wrong — pull covers the weir, since the cook fetches from it like any other input.
+
+Errands still earn a place, but for a narrower case: goods with **no consuming building
+waiting on them**. Construction materials going to a build site. A farm's harvest lump that
+must reach a granary before it spoils while nobody is eating it yet. Those have no
+stationed worker whose job is to come and get them.
+
+So: build pull first. Errands are a second, smaller mechanism, not a co-equal one.
+
+**OPEN QUESTION — does fetching stay visible forever?** Keeping every fetch as real walking
+at Timberborn scale means hundreds of agents pathing for ingredients. `bin/stress` suggests
+5,000 lightweight workers is achievable, so it is likely affordable, but it is a design
+commitment as much as a performance one. The alternative is that local storage eventually
+*replaces* the trip with a draw rather than merely shortening it. Not resolved — ask.
+
 ## Notes for the rules engine
 
 - `src/simulation.ts` is rendering-independent, deterministic, plain JSON, driven on a
@@ -165,6 +269,10 @@ without a rewrite, that is the safest path.
   point of choosing authored chains is that the graph is a table someone can edit.
 - Goods move physically — carried by villagers, as Robin already carries a log. Do not
   model transfers as instantaneous stockpile arithmetic.
+- **Two kinds of work.** *Stationed* work means a villager belongs to a building, fetches
+  its inputs, and works there. *Errands* are one-off jobs any free villager can claim.
+  See "How goods reach the buildings that consume them" above for which is which — most
+  hauling is stationed pull, and errands are a narrower category than they first appear.
 
 ## First slice
 
@@ -178,6 +286,324 @@ Do not build the whole table. A defensible first increment:
 
 That exercises the three sinks, the upkeep draw, depletion-and-regrowth, and the
 data-driven recipe table without committing to soil, seasons, metal, or trade.
+
+## Parked: practices that arrive with settlement skill
+
+Not for now, but on the roadmap and worth not designing around.
+
+**Coppice** is a woodland cut on rotation: fell a hazel or ash at the base and it does
+not die, it throws up a stand of poles that is re-cut every 7-15 years, indefinitely. A
+coppice yields firewood and poles forever but never yields a timber log. High forest
+yields timber, slowly.
+
+The reason it is interesting here is that it splits "forest" into two distinct land uses
+and gives the firewood tax a landscape of its own. The player stops asking "how much
+woodland do I have" and starts asking "what kind of woodland am I keeping".
+
+**It is gated on a concept the game does not have yet: settlement skill.** Coppicing is
+something a settlement gets *better at* — it should arrive as forestry practice matures,
+not as a building unlocked by paying planks. There is no progression or skill model in
+the design at all right now, and inventing one just to justify coppice would be the tail
+wagging the dog.
+
+So: park it. When a settlement-skill concept does exist, coppice is the first thing to
+hang off it. Until then, do not build forest state that would make the split impossible
+to add later — a single global "trees remaining" count would.
+
+Two more belong in the same parking lot, for the same reason: each is a practice a
+settlement gets *better at*, not a building it buys.
+
+**Mulberry-dike fish pond** (桑基鱼塘, Pearl River Delta). Mulberries grow on the dike,
+their leaves feed silkworms, silkworm waste feeds the fish in the pond, and pond mud is
+dredged back onto the dike to fertilize the mulberries. A four-node cycle with **no
+external input and no waste**, and it is *spatially arranged* — the dike has to adjoin the
+pond.
+
+Worth distinguishing from the loop-closing ideas elsewhere in this brief: those are all a
+byproduct being reused. This is a cycle that was **designed as a cycle**, and it is the
+strongest single argument that a mature settlement should look qualitatively different
+from a young one rather than merely bigger.
+
+**Clam gardens** (Kwakwaka'wakw, Coast Salish, Haida and other Northwest Coast peoples;
+thousands of years old and currently being restored). A rock wall built at the low tide
+line traps sediment and creates a flat terrace, and clam productivity rises sharply.
+
+Mechanically: **you build a wall and the shoreline becomes a farm.** A direct sibling to
+the fish weir, except it is husbandry rather than a trap — the weir catches what swims
+past, the garden raises more than would otherwise grow. Good fit for a game whose whole
+first slice happens on a coast.
+
+## Parked: land improvement as a mechanic
+
+**Not for now — but parked by choice, not by blockage.** Almost everything else in the
+parking lots waits on something missing: coppice and the mulberry-dike pond want a
+settlement-skill concept, mast years and ice houses want a calendar. This one wants
+neither. It needs a single number per patch of ground, and it could be built against the
+current simulation. It is deferred because the first slice should stay small, not because
+anything is in the way.
+
+Recorded in full because it is the most promising direction in this brief for making the
+game feel like something other than a well-made Settlers homage.
+
+### The principle
+
+In The Settlers, Widelands, and most of the genre, unimproved land is **neutral
+backdrop**. It holds resources, you take them, and the land itself has no state worth
+tracking.
+
+Invert that: **land you do not tend degrades.** It becomes harder to walk through, poorer
+to forage, emptier of game, and eventually dangerous. Tending it makes it better than it
+started. There is no "pristine wilderness is the ideal state" assumption anywhere in the
+design — the productive landscape is the *worked* one.
+
+That single inversion is the spine. Everything below hangs off it.
+
+### The flagship: low-intensity burning
+
+Inspired by the cultural burning practised by many Indigenous peoples of North America —
+Karuk, Yurok, Miwok and others in California especially — and by comparable traditions in
+Australia. Deliberate, frequent, low-intensity fire that clears undergrowth, brings on
+fresh growth that draws game, favours oak, hazel and camas, and keeps fuel from building
+toward a catastrophic burn.
+
+**The state it needs: brush.** One accumulating value per patch of forest. Brush grows with
+elapsed time — no seasons required. High brush:
+
+- **slows villagers walking through it.** This is the hook. Walking is what the simulation
+  already models and renders, so the cost of neglect is visible in the thing the player
+  spends all their time watching.
+- shades out berries, dropping forage yield
+- starves out browse, dropping game density
+- accumulates as fuel
+
+**The verb.** A villager walks out with a firebrand and sets a patch alight — the same
+click-a-target-and-go interaction the prototype already has for chopping. Cost in
+materials: essentially nothing. Cost in nerve: the patch yields nothing while it recovers.
+
+**The inversion, which is the best part.** Because fuel accumulates, a fire set on
+low-brush ground is gentle and controllable, while the fire that eventually happens on
+high-brush ground is not. The correct play is therefore to **burn small and burn often,
+well before it looks worth the trouble** — and a player running on ordinary
+resource-management instincts (let it build, harvest when the trip pays) is punished for
+exactly that instinct.
+
+That is the real lesson of the practice, and it falls out of the mechanic without a
+tutorial ever explaining it.
+
+**The catastrophe curve.** Burn risk should be a smooth function of accumulated brush:
+negligible at low values, severe past a threshold, and legible on the map the whole way up
+so the player can see it coming. The danger must always be a slow consequence of neglect,
+never a random event. A settlement that keeps its ground tended should essentially never
+be surprised by fire.
+
+**Ignition comes from your own industry.** The design already has a charcoal kiln and a
+hearth, both of which are fires. A settlement burning a great deal of fuel next to a
+neglected, brushy forest is at risk *from its own economy*. That is a live tension between
+two systems already in this brief, and it costs no new concepts.
+
+### How it meets firewood
+
+Firewood is already the universal operating tax, and burning touches it from both ends.
+
+- **Brush is fuel that is not firewood.** Undergrowth is not the same good as a felled log,
+  and a settlement cannot simply harvest its way out of a fire risk by gathering harder.
+  Clearing brush by hand should be possible and tedious; fire is the efficient answer.
+- **Ash feeds potash.** The potash loop in the reservoir takes wood ash and returns soap and
+  glass inputs. A burn produces ash at landscape scale.
+- **Burned ground is fertile ground**, which is a fertility answer for farmland that does
+  not route through a herd, sitting alongside the hurdles-and-folding answer.
+- **Fire risk scales with the firewood economy**, per the ignition note above. The more the
+  settlement burns indoors, the more it wants its outdoor ground kept low.
+
+### How it meets foraging (and corrects the food ladder)
+
+**Make fire the thing that creates the best forage.** Hazel, berry ground, oak mast and
+camas come up on recently burned land. Foraging stops being "find what is already there"
+and becomes "make the land produce."
+
+This is also a **correction to the food ladder written earlier in this brief**, which draws
+a clean line: forage is the free baseline that needs nothing, farming is the committed
+system. That line is not real. **Camas beds** in the Pacific Northwest — Coast Salish and
+others — were weeded, cleared, burned, owned by family and inherited. That is not
+foraging in the sense the ladder uses.
+
+The truer model is a **continuum of tending**:
+
+1. a patch you merely visit
+2. a patch you weed and burn
+3. a patch you plant
+
+The ladder's four systems (forage, fishing, hunting, farming) are still a good
+organisation of the *food sources*. But "forage is untended by definition" should not be
+hard-coded, because advanced foraging is exactly where this whole direction becomes
+interesting.
+
+### Other avenues in the same family
+
+Same principle — the player improves ground rather than only drawing from it — filed here
+so the idea is not remembered as being only about fire.
+
+- **Clam gardens** — parked above with the settlement-skill practices. Build a rock wall at
+  the low tide line and the shoreline becomes more productive than it was.
+- **Terra preta / biochar** (Amazonia) — soil built deliberately from charcoal, pottery,
+  bone and waste, still fertile centuries later. The **inverse of fertility decline**: soil
+  you construct permanently rather than deplete. Runs on charcoal, which the kiln already
+  makes, so the wood chain feeds the farm chain.
+- **Zai pits** (Sahel) — pits dug by hand in soil too crusted to plant, filled with manure,
+  drawing termites that break up the hardpan further. Rehabilitating dead ground at
+  enormous labour cost. The answer to "what do I do with land that is already ruined."
+- **Chinampas** (Xochimilco) — raised beds built up out of a shallow lake bed, self-
+  irrigating and very productive. Making arable land out of water.
+- **Dew pond** — a clay-lined hollow that gathers condensation and rain, making streamless
+  high ground habitable.
+
+Together these give the player a whole verb the genre lacks: not *build*, not *harvest*,
+but **improve**.
+
+### Cautions
+
+- **Tuning.** Fire that destroys the player's work feels punishing. Routine burns must be
+  boringly safe; only neglect is dangerous, and the danger must be visible while it builds.
+- **Framing.** Cultural burning is a living practice currently being revived by Indigenous
+  fire practitioners, not a historical curiosity. If this ships it should read as skilled
+  land management, which is what it is. The framing costs nothing to get right and is
+  conspicuous when got wrong.
+
+### What not to foreclose
+
+Nothing here needs building now. One constraint only: **forest state must be per-patch, not
+one global count.** A single `trees remaining` number makes brush, burning, coppice, and
+game-follows-browse all impossible to add without a rewrite. Keep woodland as addressable
+ground with its own state and this whole direction stays open.
+
+## Parked: a reservoir of weird historical vocabulary
+
+**Not for now.** At some point this game will want to go somewhere that feels new and
+surprising rather than like a well-made Settlers homage. When that happens, the most
+useful thing to have on hand is a stock of real preindustrial practices that are strange
+to a modern player but were ordinary to the people doing them. This section collects them.
+
+**The selection criterion matters more than the list.** An entry earns its place when it
+is:
+
+1. **Real and specific** — an actual practice with an actual name, not invented flavor.
+2. **Carrying a mechanic** — the word implies a rule. A name that is only decoration is a
+   worse version of the plain word.
+3. **Teaching something by existing** — the player ends up knowing a true thing.
+4. Ideally, making **terrain or timing matter**, since those are the two axes a settlement
+   game can express.
+
+`bloomery` passes on all four. Add to the list only things that do.
+
+**Reshaping land use**
+
+- **Assarting** — clearing woodland into new arable, often illegally at the forest edge.
+  A verb that *permanently converts land type*, distinct from harvesting from it.
+- **Transhumance / shieling** — herds moved between lowland winter pasture and high summer
+  pasture, with a hut occupied only part of the year. A seasonal building, and a settlement
+  holding both kinds of ground beats one holding twice as much of either.
+- **Lazy beds (feannagan)** — raised ridges built on rocky ground out of seaweed and turf.
+  Farming where farming should not work, at a high labor price. Makes bad land a choice.
+- **Dew pond** — a clay-lined hollow on porous high ground that gathers condensation and
+  rain. Makes streamless upland habitable.
+- **Coppice** — see its own section above.
+
+**Timing and irregularity**
+
+- **Mast year** — oak and beech drop a huge acorn crop only every few years, irregularly.
+  A resource that *spikes unpredictably* rather than accruing evenly.
+- **Pannage** — the right to turn pigs into the woods in autumn to fatten on fallen mast.
+  Free feed, but only in one season, and only under the right species. Pairs with mast
+  years into an occasional bonanza, and makes tree *species* matter.
+- **Tide mill** — a mill on the tide rather than the sun, running roughly twice a day and
+  drifting fifty minutes later each day. Intermittent production on a non-solar clock.
+
+**Same good, different recipe by place**
+
+This is the most under-used idea in the genre and the most promising.
+
+- **Salt pan vs. salt cote** — sun-evaporated brine where the climate allows; boiled over
+  fire where it does not. The same salt, nearly free in the south and fuel-hungry in the
+  north.
+- **Corn drying kiln** — in wet climates grain must be kiln-dried before it can be milled
+  or stored at all. A mandatory extra step that simply does not exist elsewhere.
+- **Sweet chestnut flour** — bread from trees where grain will not grow. A forest that
+  feeds a settlement the way a field would.
+
+**Preservation as temporal logistics**
+
+The most useful framing to come out of collecting these. Cheese, salt fish, smoked meat,
+ale, cider, **chuno** (Andean freeze-dried potato, kept for years), and ice are not
+upgrades to their fresh forms — they are **batteries**. Every other logistics idea in this
+design moves goods through *space*; these move goods through *time*.
+
+If a calendar ever lands, this becomes the second logistics system, and the goods for it
+are already sitting in the resource table.
+
+- **Ice house** — cut ice in winter, pack it underground in straw, and have cold storage
+  all summer. Winter produces a resource whose entire payoff is in another season. The
+  cleanest single illustration of the idea.
+- Milk spoils in a day; cheese keeps for a year. The dairy is not a flavor building, it is
+  a storage building that happens to change the good's name.
+
+**Logistics**
+
+- **Bodger** — an itinerant woodworker who turned chair legs on a pole lathe *in the wood
+  where the tree fell*, because carrying legs is lighter than carrying logs. Processing at
+  the source to cut haulage. A mobile workshop, which no building-based economy models.
+- **Ropewalk** — rope is laid at full length, so ropewalks were absurdly long narrow sheds,
+  some over 300 yards. A building with a *shape* requirement, not a footprint. Worth
+  holding until buildings have real placement rules; wasted without them.
+- **Clamp** — roots heaped under straw and earth, keeping through winter with no building
+  at all. Near-free storage that loses a steady percentage.
+
+**Nuisance and placement**
+
+- **Retting pond** — flax soaked for weeks until the stem rots off the fiber, famously foul
+  enough that towns banned it from common water. A long delayed conversion *plus* a
+  negative amenity radius: zoning emerges without a zoning system.
+- **Tannery** — wants running water, and stinks. Uses oak bark, a byproduct of felling.
+
+**Closing loops**
+
+- **Potash** — leached and boiled wood ash, for soap and glass. Every building paying the
+  firewood tax already makes ash, so the universal cost becomes an input.
+- **Tanbark** — tanning needs oak bark from felling. Logging feeds leather sideways.
+- **Hurdles and the golden hoof** — portable woven fence panels. Fold sheep onto a fallow
+  field at night, move the hurdles daily, and the flock manures the ground. The prettiest
+  available answer to farm fertility, and it arrives as a *tool* connecting herd to field.
+- **Lime kiln** — quicklime for mortar in construction **and** for sweetening sour fields.
+  One good feeding two different sinks is rare and worth a lot.
+
+**Husbandry wearing other clothes**
+
+- **Warren and pillow mound** — artificial rabbit warrens, deliberately built and tended by
+  a warrener. Looks like hunting, is actually farming.
+- **Dovecote** — pigeons for meat and, more usefully, guano. In France the right to keep
+  one was a seigneurial privilege.
+- **Staddle stones** — the mushroom-shaped stone feet a granary stands on so rats cannot
+  climb in. A granary without them quietly loses grain. Visible, charming, a real upgrade.
+
+**Jobs with a failure state**
+
+- **Charcoal burner's watch** — a collier slept beside the mound for days, because too much
+  air loses the entire burn. A job that fails if the worker walks away, which is a good
+  stress test for a villager who gets hungry.
+- **Eel bucks and fish weirs** — passive traps that catch with no worker at all.
+
+**Commons and obligation**
+
+- **Quern** — a hand mill: two stones, turned by a person. Slow, free, needs no building,
+  and works the day a settlement is founded. A watermill is faster but has to be built and
+  sited. Free-and-slow against built-and-fast is a good early choice on its own.
+
+  (There is a historical monopoly story attached to querns — grinding obligations, and
+  confiscation to enforce them. Deliberately left out: coercion is not the tone of this
+  game.)
+
+- **Souming** — the rule limiting how many animals each household may graze on the common,
+  to stop overgrazing. A governance mechanic rather than a production one. Filed here
+  because it is the shape of a genuinely different game.
 
 ## Explicitly out of scope right now
 
