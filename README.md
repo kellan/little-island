@@ -1,6 +1,8 @@
 # Little Island
 
-A small, tactile browser settlement prototype: orbit a handmade procedural island, select a tree, and watch Robin walk, chop, carry a log, and deliver it to the clearing.
+A small, tactile browser settlement prototype: orbit a handmade procedural island, mark a tree, and watch Robin walk, chop, carry a log, and deliver it to the clearing. Mark several and they become a list of work.
+
+Underneath is a rule engine that knows nothing about the screen: plain JSON state, commands in, events out, eleven rules a tick. See [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
 
 ## Local development
 
@@ -16,21 +18,25 @@ Press `Ctrl-C` in that terminal to stop the server. To use another port, run `PO
 bin/check
 ```
 
-That runs the simulation tests, typechecks the project, and creates `dist/` for static hosting. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts are optional, with system font fallbacks.
+That runs the simulation tests, typechecks the project, and creates `dist/` for static hosting. While the page is open, `window.island` exposes the live simulation and scene for console poking and browser tests. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts are optional, with system font fallbacks.
 
 ## Controls
 
-- Click a tree: issue a harvesting order. New orders may interrupt walking/chopping, but a carried log is delivered before accepting another order.
+- Click a tree: add it to the work list. Click a marked tree again to call it off. Orders are accepted while paused, and a carried log always comes home even if its order is cancelled.
 - Drag: orbit. Right drag: pan. Scroll/pinch: zoom.
 - Space or pause: pause simulation. 1×: cycle through 1×, 2×, and 3×.
 - Home icon: find Robin up close. Island title: reset the camera. Sound icon: toggle synthesized sound effects.
 - Help: controls. Reset: confirm a fresh island.
 
-The single villager and island state save to localStorage every five seconds, on orders/deliveries and on leaving. Reload resumes the job. All geometry is procedural.
+The island saves to localStorage every five seconds, on deliveries and on leaving. Reload resumes the job, the work list, and any order still waiting in the inbox. All geometry is procedural.
 
 ## Architecture
 
-`src/simulation.ts` is rendering-independent, deterministic, plain JSON data plus commands and bounded time steps. `serialize` / `deserialize` are the persistence boundary. `src/scene.ts` owns Three.js objects and derives visuals from simulation state. `src/main.ts` binds browser input, UI and saves to the simulation. Terrain height is shared by simulation and rendering. The convex mainland permits direct walking paths without navigation machinery; decorative tree foliage is not a path obstacle in this deliberately narrow prototype. There are no buildings, needs, production chains, networking or backend.
+`src/sim/` is the game: a rule engine with no renderer, no DOM and no Three.js import. The state is plain JSON, the host queues commands, the engine runs whole 1/30s ticks and hands back events. `src/scene.ts` owns the Three.js objects and derives every frame from that state, interpolating between ticks. `src/game.ts` is the only file that touches the browser: clicks become commands, events become sound and messages. Terrain height is one function shared by both sides, so feet and props agree with the ground.
+
+The rulebook, the tick, the command and event vocabulary, the save format and the known gaps are documented in [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
+
+The convex mainland permits direct walking paths without navigation machinery; decorative tree foliage is not a path obstacle in this deliberately narrow prototype. There are no buildings, needs, production chains, networking or backend.
 
 ## Play and previews
 
@@ -42,9 +48,20 @@ The single villager and island state save to localStorage every five seconds, on
 - **Terrain:** one height function keeps feet and props grounded. Triangle winding and shadow sides are visible correctness issues, not just geometry details. A flattened clearing fixed ground intersection with its surface patch. The island is intentionally convex; real roads and obstacles would need navigation.
 - **Agent development:** Astra made the first complete slice quickly, but playing it revealed oversized HUD text, ground intersection, shadow artifacts and camera occlusion that compilation could not. Keep the loop: implement, build, play, inspect, fix, play again.
 
+## What the rule engine iteration taught us
+
+- **The rules:** a state machine per villager was fine for one villager and stopped being fine the moment work could queue. Phases plus a job with an owner made the awkward cases — cancel an order mid-walk, fell a tree someone else already took, quit while carrying a log — ordinary rather than special. Eleven rules cover the whole game, and each one fits on a screen.
+- **Commands in, events out:** the host used to notice a delivery by comparing a counter against last frame's copy, and time the chop sound by rounding world time into beats. Both are now events the rules emit, and the host got shorter as a result: it reacts instead of inferring.
+- **Time:** quantising to whole 1/30s ticks and interpolating positions for rendering removed frame-rate dependence and, unexpectedly, made walking look better. Clamping the catch-up means a backgrounded tab resumes calmly instead of teleporting everyone.
+- **Determinism is cheap if you pay early:** putting the seed inside the world made replay tests, save/load equivalence and "does this bug reproduce" all the same one-line check (`hashWorld`).
+- **Three.js, again:** a blocked Google Fonts `@import` inside the bundled CSS made Vite's stylesheet preload reject and the dynamic import of the game never resolve — a blank island for anyone whose network dislikes that CDN. Fonts now load from a `<link>` that is allowed to fail. Rendering one villager or a hundred is the same code once the scene derives rigs from state.
+- **Terrain:** moving `elevation` into the simulation package settled who owns the ground. The renderer asks the same question the walking rules do, and nothing floats.
+- **Headless is fast:** with no renderer attached, 120 villagers felling 240 trees costs about 0.06 ms per tick against a 33 ms budget. Linear scans and re-sorting candidates are not the problem anyone thought they would be at settlement scale.
+- **Agent development:** the headless tests were green while the built page was a blank screen, because nothing in a unit test loads a font from a CDN. Driving the real page — click a tree, wait for the log, reload, look at the screenshot — found the blank page, the too-pale order markers, and whether a work list reads as a work list. Write the engine headless, then go and play it.
+
 ## Scope and next-step notes
 
-One villager, finite trees, one timber stockpile. No buildings, needs, production chains or additional villagers. Time of day is fixed; trees do not regrow. The simulation persists data, not Three.js objects. Inspiration: Outlanders 2 and The Settlers 2 for calm readable work, Timberborn for physical resource movement, Widelands for future economic thinking, SlimCity for web architecture, and Three.js Game for small examples. No source code or art is copied from those games.
+One villager, finite trees, one timber stockpile, one kind of job. The engine is not limited to that: villagers are a list, jobs have owners and a `kind`, and the scale test runs 120 of them. The game deliberately does not. No buildings, needs, production chains, pathfinding, regrowth or time of day — the shape each of those would take is noted at the end of [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md). The simulation persists data, not Three.js objects. Saves from the first iteration are not loadable; a fresh island appears instead. Inspiration: Outlanders 2 and The Settlers 2 for calm readable work, Timberborn for physical resource movement, Widelands for future economic thinking, SlimCity for web architecture, and Three.js Game for small examples. No source code or art is copied from those games.
 
 ## Technical proving ground
 
