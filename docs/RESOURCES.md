@@ -333,6 +333,149 @@ the fish weir, except it is husbandry rather than a trap — the weir catches wh
 past, the garden raises more than would otherwise grow. Good fit for a game whose whole
 first slice happens on a coast.
 
+## Parked: land improvement as a mechanic
+
+**Not for now — but parked by choice, not by blockage.** Almost everything else in the
+parking lots waits on something missing: coppice and the mulberry-dike pond want a
+settlement-skill concept, mast years and ice houses want a calendar. This one wants
+neither. It needs a single number per patch of ground, and it could be built against the
+current simulation. It is deferred because the first slice should stay small, not because
+anything is in the way.
+
+Recorded in full because it is the most promising direction in this brief for making the
+game feel like something other than a well-made Settlers homage.
+
+### The principle
+
+In The Settlers, Widelands, and most of the genre, unimproved land is **neutral
+backdrop**. It holds resources, you take them, and the land itself has no state worth
+tracking.
+
+Invert that: **land you do not tend degrades.** It becomes harder to walk through, poorer
+to forage, emptier of game, and eventually dangerous. Tending it makes it better than it
+started. There is no "pristine wilderness is the ideal state" assumption anywhere in the
+design — the productive landscape is the *worked* one.
+
+That single inversion is the spine. Everything below hangs off it.
+
+### The flagship: low-intensity burning
+
+Inspired by the cultural burning practised by many Indigenous peoples of North America —
+Karuk, Yurok, Miwok and others in California especially — and by comparable traditions in
+Australia. Deliberate, frequent, low-intensity fire that clears undergrowth, brings on
+fresh growth that draws game, favours oak, hazel and camas, and keeps fuel from building
+toward a catastrophic burn.
+
+**The state it needs: brush.** One accumulating value per patch of forest. Brush grows with
+elapsed time — no seasons required. High brush:
+
+- **slows villagers walking through it.** This is the hook. Walking is what the simulation
+  already models and renders, so the cost of neglect is visible in the thing the player
+  spends all their time watching.
+- shades out berries, dropping forage yield
+- starves out browse, dropping game density
+- accumulates as fuel
+
+**The verb.** A villager walks out with a firebrand and sets a patch alight — the same
+click-a-target-and-go interaction the prototype already has for chopping. Cost in
+materials: essentially nothing. Cost in nerve: the patch yields nothing while it recovers.
+
+**The inversion, which is the best part.** Because fuel accumulates, a fire set on
+low-brush ground is gentle and controllable, while the fire that eventually happens on
+high-brush ground is not. The correct play is therefore to **burn small and burn often,
+well before it looks worth the trouble** — and a player running on ordinary
+resource-management instincts (let it build, harvest when the trip pays) is punished for
+exactly that instinct.
+
+That is the real lesson of the practice, and it falls out of the mechanic without a
+tutorial ever explaining it.
+
+**The catastrophe curve.** Burn risk should be a smooth function of accumulated brush:
+negligible at low values, severe past a threshold, and legible on the map the whole way up
+so the player can see it coming. The danger must always be a slow consequence of neglect,
+never a random event. A settlement that keeps its ground tended should essentially never
+be surprised by fire.
+
+**Ignition comes from your own industry.** The design already has a charcoal kiln and a
+hearth, both of which are fires. A settlement burning a great deal of fuel next to a
+neglected, brushy forest is at risk *from its own economy*. That is a live tension between
+two systems already in this brief, and it costs no new concepts.
+
+### How it meets firewood
+
+Firewood is already the universal operating tax, and burning touches it from both ends.
+
+- **Brush is fuel that is not firewood.** Undergrowth is not the same good as a felled log,
+  and a settlement cannot simply harvest its way out of a fire risk by gathering harder.
+  Clearing brush by hand should be possible and tedious; fire is the efficient answer.
+- **Ash feeds potash.** The potash loop in the reservoir takes wood ash and returns soap and
+  glass inputs. A burn produces ash at landscape scale.
+- **Burned ground is fertile ground**, which is a fertility answer for farmland that does
+  not route through a herd, sitting alongside the hurdles-and-folding answer.
+- **Fire risk scales with the firewood economy**, per the ignition note above. The more the
+  settlement burns indoors, the more it wants its outdoor ground kept low.
+
+### How it meets foraging (and corrects the food ladder)
+
+**Make fire the thing that creates the best forage.** Hazel, berry ground, oak mast and
+camas come up on recently burned land. Foraging stops being "find what is already there"
+and becomes "make the land produce."
+
+This is also a **correction to the food ladder written earlier in this brief**, which draws
+a clean line: forage is the free baseline that needs nothing, farming is the committed
+system. That line is not real. **Camas beds** in the Pacific Northwest — Coast Salish and
+others — were weeded, cleared, burned, owned by family and inherited. That is not
+foraging in the sense the ladder uses.
+
+The truer model is a **continuum of tending**:
+
+1. a patch you merely visit
+2. a patch you weed and burn
+3. a patch you plant
+
+The ladder's four systems (forage, fishing, hunting, farming) are still a good
+organisation of the *food sources*. But "forage is untended by definition" should not be
+hard-coded, because advanced foraging is exactly where this whole direction becomes
+interesting.
+
+### Other avenues in the same family
+
+Same principle — the player improves ground rather than only drawing from it — filed here
+so the idea is not remembered as being only about fire.
+
+- **Clam gardens** — parked above with the settlement-skill practices. Build a rock wall at
+  the low tide line and the shoreline becomes more productive than it was.
+- **Terra preta / biochar** (Amazonia) — soil built deliberately from charcoal, pottery,
+  bone and waste, still fertile centuries later. The **inverse of fertility decline**: soil
+  you construct permanently rather than deplete. Runs on charcoal, which the kiln already
+  makes, so the wood chain feeds the farm chain.
+- **Zai pits** (Sahel) — pits dug by hand in soil too crusted to plant, filled with manure,
+  drawing termites that break up the hardpan further. Rehabilitating dead ground at
+  enormous labour cost. The answer to "what do I do with land that is already ruined."
+- **Chinampas** (Xochimilco) — raised beds built up out of a shallow lake bed, self-
+  irrigating and very productive. Making arable land out of water.
+- **Dew pond** — a clay-lined hollow that gathers condensation and rain, making streamless
+  high ground habitable.
+
+Together these give the player a whole verb the genre lacks: not *build*, not *harvest*,
+but **improve**.
+
+### Cautions
+
+- **Tuning.** Fire that destroys the player's work feels punishing. Routine burns must be
+  boringly safe; only neglect is dangerous, and the danger must be visible while it builds.
+- **Framing.** Cultural burning is a living practice currently being revived by Indigenous
+  fire practitioners, not a historical curiosity. If this ships it should read as skilled
+  land management, which is what it is. The framing costs nothing to get right and is
+  conspicuous when got wrong.
+
+### What not to foreclose
+
+Nothing here needs building now. One constraint only: **forest state must be per-patch, not
+one global count.** A single `trees remaining` number makes brush, burning, coppice, and
+game-follows-browse all impossible to add without a rewrite. Keep woodland as addressable
+ground with its own state and this whole direction stays open.
+
 ## Parked: a reservoir of weird historical vocabulary
 
 **Not for now.** At some point this game will want to go somewhere that feels new and
