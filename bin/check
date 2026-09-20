@@ -6,3 +6,4 @@ cd "$project_dir"
 
 npm test
 npm run build
+npm run test:browser
