@@ -4,7 +4,7 @@
  */
 import {
   HOME, distance, elapsedSeconds, findBuilding, findPile, findSite, findVillager, heldIn,
-  hasRoom, jobForSite, liveSites, loosePiles, onLand, standingTrees, tasksFor, totalWare, tuning,
+  hasRoom, jobForSite, liveSites, onLand, standingTrees, tasksFor, totalWare, tuning,
   type Building, type Job, type SimEvent, type Site, type Villager, type WareId, type World,
 } from '../sim/index.ts';
 

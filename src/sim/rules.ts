@@ -96,7 +96,7 @@ function deliveryTarget(world: World, villager: Villager): Building | undefined 
 }
 
 /** The input a working building lacks right now, or null while it can work. */
-function shortageAt(world: World, building: Building): WareId | null {
+function shortageAt(building: Building): WareId | null {
   if (building.workerId === null) return null;
   for (const task of tasksFor(building)) {
     if (!roomForYield(building, task)) continue;
@@ -163,7 +163,7 @@ const acceptCommands = defineRule<World>({
         if (activeJobs(world).length >= MAX_JOBS_PER_VILLAGER * world.villagers.length) { ctx.emit({ kind: 'order-rejected', siteId: site.id, reason: 'queue-full' }); continue; }
         const job: Job = {
           id: world.nextJobId++, kind: 'task', task: 'fell', siteId: site.id, buildingId: null, state: 'queued',
-          assignee: null, priority: JOB_PRIORITY.fell, createdTick: world.tick, finishedTick: null,
+          assignee: null, priority: JOB_PRIORITY.task, createdTick: world.tick, finishedTick: null,
         };
         world.jobs.push(job);
         world.stats.ordersQueued++;
@@ -351,7 +351,7 @@ const finishWork = defineRule<Villager>({
       site.reservedBy = null;
       if (site.amount === 0) {
         if (site.kind === 'tree') world.stats.treesFelled++;
-        ctx.emit({ kind: 'site-spent', siteId: site.id, kind_: site.kind, villagerId: villager.id });
+        ctx.emit({ kind: 'site-spent', siteId: site.id, siteKind: site.kind, villagerId: villager.id });
       }
     }
     for (const produced of task.yields ?? []) {
@@ -522,7 +522,7 @@ const pickATask = defineRule<Building>({
     const site = task.site ? availableSite(world, building, task, worker) : undefined;
     const job: Job = {
       id: world.nextJobId++, kind: 'task', task: task.id, siteId: site?.id ?? null, buildingId: building.id,
-      state: 'assigned', assignee: worker.id, priority: JOB_PRIORITY.fell, createdTick: world.tick, finishedTick: null,
+      state: 'assigned', assignee: worker.id, priority: JOB_PRIORITY.task, createdTick: world.tick, finishedTick: null,
     };
     world.jobs.push(job);
     worker.jobId = job.id;
@@ -626,9 +626,9 @@ const noteShortage = defineRule<Building>({
   phase: 'upkeep',
   about: 'Records what a building is waiting for, so a stalled workshop says why.',
   subjects: (world) => world.buildings.filter(building => tasksFor(building).some(task => (task.takes ?? []).length > 0)),
-  when: (world, building) => shortageAt(world, building) !== building.waiting,
-  then: (world, building, ctx) => {
-    building.waiting = shortageAt(world, building);
+  when: (_world, building) => shortageAt(building) !== building.waiting,
+  then: (_world, building, ctx) => {
+    building.waiting = shortageAt(building);
     if (building.waiting) ctx.emit({ kind: 'waiting-for', ware: building.waiting, buildingId: building.id });
   },
 });

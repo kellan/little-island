@@ -33,7 +33,7 @@ export const MAX_JOBS_PER_VILLAGER = 12;
  * come home as they are made; set them equal and the forest fills with loose wares
  * while the axe keeps swinging, which is a different and more Settlers-ish game.
  */
-export const JOB_PRIORITY = { haul: 10, fell: 0 } as const;
+export const JOB_PRIORITY = { haul: 10, task: 0 } as const;
 
 /** Finished jobs linger this long so the host can notice them, then are pruned. */
 export const JOB_HISTORY_SECONDS = 1;

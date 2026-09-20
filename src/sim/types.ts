@@ -159,7 +159,7 @@ export type SimEvent = { tick: number } & (
   | { kind: 'job-assigned'; jobId: number; job: JobKind; targetId: number; villagerId: number }
   | { kind: 'job-abandoned'; jobId: number; job: JobKind; targetId: number; villagerId: number | null }
   | { kind: 'work-stroke'; villagerId: number; task: string; siteId: number | null }
-  | { kind: 'site-spent'; siteId: number; kind_: SiteKind; villagerId: number }
+  | { kind: 'site-spent'; siteId: number; siteKind: SiteKind; villagerId: number }
   | { kind: 'ware-dropped'; ware: WareId; pileId: number; x: number; z: number }
   | { kind: 'ware-collected'; ware: WareId; amount: number; pileId: number; villagerId: number }
   | { kind: 'ware-delivered'; ware: WareId; amount: number; total: number; villagerId: number }
