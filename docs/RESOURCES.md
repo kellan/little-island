@@ -425,7 +425,16 @@ are already sitting in the resource table.
   stress test for a villager who gets hungry.
 - **Eel bucks and fish weirs** — passive traps that catch with no worker at all.
 
-**Commons**
+**Commons and obligation**
+
+- **Quern** — a hand mill: two stones, turned by a person. Slow, free, needs no building,
+  and works the day a settlement is founded. A watermill is fast but built and tolled, so
+  the pair is already a decent choice on its own.
+
+  What makes it a story is **mill soke**: the legal obligation to grind your grain at the
+  lord's mill. Where it applied, querns were confiscated and smashed to enforce it. A
+  monopoly maintained by breaking people's tools is a far more interesting way to gate a
+  technology than making it expensive.
 
 - **Souming** — the rule limiting how many animals each household may graze on the common,
   to stop overgrazing. A governance mechanic rather than a production one. Filed here
