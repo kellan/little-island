@@ -20,8 +20,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Correctness is gated by the Check pull request workflow on this same
+      # commit. Repeating it here doubled the minutes for every push to a PR.
       - if: github.event.action != 'closed'
-        run: npm ci && npm test && npm run build
+        run: npm ci && npm run build
       - uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9
         with:
           source-dir: dist

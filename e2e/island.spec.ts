@@ -6,68 +6,11 @@
  * simulation's vocabulary. A rename inside `src/sim` once left the browser
  * quietly broken with every other test passing, which is why this exists.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { clickAt, hurry, logsHome, openIsland, visibleTrees } from './harness.ts';
 
-/** The handle `src/game.ts` hangs on the window for exactly this purpose. */
-declare global {
-  interface Window {
-    island: {
-      sim: { world: any; rulebook: { id: string } };
-      view: { treeGroups: Map<number, any>; camera: any; pick(x: number, y: number): number | null; workBadge(): { progress: number } | null };
-    };
-  }
-}
-
-async function openIsland(page: Page) {
-  const problems: string[] = [];
-  page.on('pageerror', error => problems.push(`pageerror: ${error.message}`));
-  await page.goto('/', { waitUntil: 'load' });
-  await page.waitForFunction(() => !!window.island, null, { timeout: 30_000 });
-  await page.evaluate(() => { localStorage.clear(); });
-  await page.reload({ waitUntil: 'load' });
-  await page.waitForFunction(() => !!window.island, null, { timeout: 30_000 });
-  await page.evaluate(() => document.querySelector<HTMLDialogElement>('#help-dialog')?.close());
-  return problems;
-}
-
-/** Where a tree is on screen right now, found the way the game finds it. */
-async function treeAt(page: Page, id: number) {
-  return page.evaluate((treeId) => {
-    const group = window.island.view.treeGroups.get(treeId);
-    const point = group.position.clone();
-    point.y += 1.6 * group.scale.x;
-    point.project(window.island.view.camera);
-    return { x: (point.x * .5 + .5) * innerWidth, y: (-point.y * .5 + .5) * innerHeight };
-  }, id);
-}
-
-/** Trees comfortably inside the viewport, so a click cannot miss. */
-async function visibleTrees(page: Page, count: number) {
-  const ids = await page.evaluate(() => window.island.sim.world.trees.map((tree: any) => tree.id));
-  const found: { id: number; x: number; y: number }[] = [];
-  for (const id of ids) {
-    const at = await treeAt(page, id);
-    if (at.x > 150 && at.x < 1130 && at.y > 160 && at.y < 640) found.push({ id, ...at });
-    if (found.length >= count) break;
-  }
-  expect(found.length, 'enough trees on screen to click').toBeGreaterThanOrEqual(count);
-  return found;
-}
-
-const clickAt = async (page: Page, at: { x: number; y: number }) => {
-  await page.mouse.move(at.x, at.y);
-  await page.mouse.down();
-  await page.mouse.up();
-};
-
-const logsHome = (page: Page, count: number) =>
-  page.waitForFunction(n => window.island.sim.world.stockpile.stock.log >= n, count, { timeout: 60_000 });
-
-/** 3x, so the slow software renderer in CI does not make us wait in real time. */
-const hurry = async (page: Page) => { await page.click('#speed'); await page.click('#speed'); };
-
-test('the island opens, and Robin is alive in it', async ({ page }) => {
-  const problems = await openIsland(page);
+test('the island opens, and Robin is alive in it', async ({ page, baseURL }) => {
+  const problems = await openIsland(page, baseURL);
   await expect(page.locator('#world')).toBeVisible();
   const state = await page.evaluate(() => ({
     rulebook: window.island.sim.rulebook.id,
@@ -175,13 +118,13 @@ test('the camera is steady under a drag and a zoom', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
-test('the island still opens when the font CDN is unreachable', async ({ page }) => {
-  // The fonts used to be an @import inside the bundled CSS. When the CDN was
-  // blocked, Vite's stylesheet preload rejected, the dynamic import of the game
-  // never resolved, and the page stayed blank. Never again.
-  await page.route('**fonts.googleapis.com/**', route => route.abort());
-  await page.route('**fonts.gstatic.com/**', route => route.abort());
-  const problems = await openIsland(page);
+test('the island still opens when the font CDN is unreachable', async ({ page, baseURL }) => {
+  // Every test here runs with third-party requests blocked; this is the one that
+  // says why. The fonts used to be an @import inside the bundled CSS, so when the
+  // CDN was blocked Vite's stylesheet preload rejected, the dynamic import of the
+  // game never resolved, and the page stayed blank. Typography now degrades to
+  // system fonts and nothing else goes with it.
+  const problems = await openIsland(page, baseURL);
   await expect(page.locator('#world')).toBeVisible();
   await expect(page.locator('.brand')).toContainText('LITTLE ISLAND');
   expect(await page.evaluate(() => window.island.sim.world.villagers.length)).toBe(1);

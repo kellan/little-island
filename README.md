@@ -18,7 +18,7 @@ Press `Ctrl-C` in that terminal to stop the server. To use another port, run `PO
 bin/check
 ```
 
-That runs the simulation tests, typechecks the project, and creates `dist/` for static hosting. `bin/e2e` builds the site and plays it in a real browser — clicking a tree, watching the log come home, reloading — which needs `npx playwright install chromium` once per machine. What the tests cover, and the classes of bug they are aimed at, is in [docs/TESTING.md](docs/TESTING.md). `bin/play` opens the same island in a terminal. While the page is open, `window.island` exposes the live simulation and scene for console poking and browser tests. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts are optional, with system font fallbacks.
+That runs the simulation tests, typechecks the project, creates `dist/` for static hosting, and plays the built site in a headless Chromium with every third-party request blocked. `bin/e2e` runs that browser pass alone — clicking a tree, watching the log come home, reloading. It needs `npx playwright install chromium` once per machine; a sandbox that already ships a browser can point `CHROMIUM_PATH` at it instead. What the tests cover, and the classes of bug they are aimed at, is in [docs/TESTING.md](docs/TESTING.md). `bin/play` opens the same island in a terminal. While the page is open, `window.island` exposes the live simulation and scene for console poking and browser tests. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts load from the document, so a blocked or unreachable font host costs typography and nothing else.
 
 ## Controls
 
@@ -114,23 +114,24 @@ vocabulary is at the top of [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
 
 ## Architecture
 
-`src/sim/` is the game: a rule engine with no renderer, no DOM and no Three.js import. It has two front ends — `src/cli/` in a terminal and `src/scene.ts` plus `src/game.ts` in a browser — and neither is allowed to hold game logic. The state is plain JSON, the host queues commands, the engine runs whole 1/30s ticks and hands back events. `src/scene.ts` owns the Three.js objects and derives every frame from that state, interpolating between ticks. `src/game.ts` is the only file that touches the browser: clicks become commands, events become sound and messages. `src/cli/view.ts` does the same job in text, and `src/cli/play.ts` is a readline loop over the same commands. Terrain height is one function shared by both sides, so feet and props agree with the ground.
+`src/sim/` is the game: a rule engine with no renderer, no DOM and no Three.js import. It has two front ends — `src/cli/` in a terminal and `src/scene.ts` plus `src/game.ts` in a browser — and neither is allowed to hold game logic. The state is plain JSON, the host queues commands, the engine runs whole 1/30s ticks and hands back events, so the same elapsed time produces the same world whatever the display refresh rate and a stalled tab cannot bank hours of work. `serialize` / `deserialize` are the persistence boundary. `src/scene.ts` owns the Three.js objects and derives every frame from that state, interpolating between ticks. `src/game.ts` is the only file that touches the browser: clicks become commands, events become sound and messages. `src/main.ts` only chooses between the island and the lab. `src/cli/view.ts` does the same job in text, and `src/cli/play.ts` is a readline loop over the same commands. Terrain height is one function shared by both sides, so feet and props agree with the ground.
 
 The rulebook, the tick, the command and event vocabulary, the save format and the known gaps are documented in [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
 
 Where production is going — foraging, depletion, multi-input recipes, upkeep and farms, and the one abstraction that covers them — is in [docs/PRODUCTION.md](docs/PRODUCTION.md), replying to the design brief in [docs/RESOURCES.md](docs/RESOURCES.md).
 
-The convex mainland permits direct walking paths without navigation machinery; decorative tree foliage is not a path obstacle in this deliberately narrow prototype. There are no buildings, needs, production chains, networking or backend.
+The convex mainland permits direct walking paths without navigation machinery; decorative tree foliage is not a path obstacle in this deliberately narrow prototype.
 
 ## Play and previews
 
-[Play the island](https://kellan.github.io/little-island/). Pushes to main build, test, play the browser suite, and deploy to GitHub Pages; a failure in the browser run stops the deploy. Same-repository pull requests build a playable preview at /little-island/pr-preview/pr-N/; the Actions run summary has the link. Closing a PR removes its preview. Fork PRs receive read-only build/test CI. Actions are pinned to commit SHAs and use only the repository's short-lived GITHUB_TOKEN.
+[Play the island](https://kellan.github.io/little-island/). Pushes to main build, test, play the browser suite, and deploy to GitHub Pages; a failure in the browser run stops the deploy. Same-repository pull requests build a playable preview at /little-island/pr-preview/pr-N/; the Actions run summary has the link. The preview only builds, because the check workflow already tests the same commit. Closing a PR removes its preview. Fork PRs receive read-only build/test CI. Actions are pinned to commit SHAs and use only the repository's short-lived GITHUB_TOKEN.
 
 ## What the first iteration taught us
 
 - **Three.js:** procedural meshes, warm directional light and damped OrbitControls make a convincing little world without models or an asset pipeline. A full library bundle is still roughly 135 KB gzipped; broad device performance is not established by this spike.
 - **Terrain:** one height function keeps feet and props grounded. Triangle winding and shadow sides are visible correctness issues, not just geometry details. A flattened clearing fixed ground intersection with its surface patch. The island is intentionally convex; real roads and obstacles would need navigation.
 - **Agent development:** Astra made the first complete slice quickly, but playing it revealed oversized HUD text, ground intersection, shadow artifacts and camera occlusion that compilation could not. Keep the loop: implement, build, play, inspect, fix, play again.
+- **Instruments lie quietly:** the first frame-rate readout sampled the clamped simulation delta, so it could not report worse than 10 FPS or 100 ms however badly a frame ran. A benchmark that cannot express failure is worse than no benchmark. The lab now measures real elapsed time and a headless smoke test loads the built pages, because a page that compiles and then renders nothing passes every unit test.
 
 ## What the rule engine iteration taught us
 
@@ -149,4 +150,4 @@ One villager, finite trees, one stockpile, two kinds of job. The engine is not l
 
 ## Technical proving ground
 
-Run `bin/stress` to open the browser benchmark. It can scale an instanced forest to 50,000 trees, simulate up to 5,000 lightweight workers, burst-retarget paths, measure raycast picking, and verify deterministic JSON save/load. See [docs/STRESS_TESTING.md](docs/STRESS_TESTING.md) for scenarios, budgets, and the first measurements.
+Run `bin/stress` to open the browser benchmark. It can scale an instanced forest to 50,000 trees, simulate up to 5,000 lightweight workers, burst-retarget paths, measure raycast picking, and verify deterministic JSON save/load. It reports real elapsed frame time, so a frame that misses the budget by 40x says so instead of flattening against a clamp. See [docs/STRESS_TESTING.md](docs/STRESS_TESTING.md) for scenarios, budgets, and measurements.

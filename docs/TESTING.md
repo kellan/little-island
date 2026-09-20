@@ -72,7 +72,10 @@ budget at 30Hz. Currently about 0.06ms for 120 villagers.
 ## 7. Does the page actually work?
 
 `e2e/` drives the built site in a real Chromium with Playwright (`bin/e2e`, or
-`npm run e2e`). Six checks, written as a person would play:
+`npm run e2e`). Every test runs with third-party requests blocked, so the suite
+never depends on a font host being up and can never silently start to.
+
+Six checks on the island, written as a person would play:
 
 - the island opens, the villager is alive in it and putters about on their own
 - clicking a tree sends Robin to fell it, and the log reaches the clearing —
@@ -92,6 +95,11 @@ Both of the guards here were checked by putting the bug back. Restoring the CSS
 `@import` fails the font test; renaming the activity the renderer looks for
 fails the felling test at the progress bar. A test nobody has seen fail is a
 test nobody should trust.
+
+Four more cover the stress lab, which is the only thing that reports whether a
+browser can hold a settlement at all: that it opens offline, that its frame,
+simulation and instancing numbers read as numbers rather than dashes, that zero
+counts in the URL are taken literally, and that its saved state round trips.
 
 It runs on every pull request, and again before the deploy to Pages, because the
 built page is the whole deliverable.

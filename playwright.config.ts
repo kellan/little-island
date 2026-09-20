@@ -25,7 +25,9 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     viewport: { width: 1280, height: 800 },
     launchOptions: {
-      args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'],
+      // CHROMIUM_PATH lets a sandbox with a pre-installed browser skip `playwright install`.
+      executablePath: process.env.CHROMIUM_PATH || undefined,
+      args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox', '--disable-dev-shm-usage'],
     },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

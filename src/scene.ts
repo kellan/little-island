@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { disposeObject } from './dispose.ts';
 import { HOME, elapsedSeconds, elevation, nextRandom, tuning, type Villager, type World } from './sim/index.ts';
 
 const mat = (color: string | number, roughness = 1) => new THREE.MeshStandardMaterial({ color, roughness, flatShading: true });
@@ -198,7 +199,11 @@ export class IslandScene {
 
     const logs = world.stockpile.stock.log;
     if (this.lastLogs !== logs) {
-      this.lastLogs = logs; this.stockpile.clear();
+      this.lastLogs = logs;
+      // Geometry is built fresh each time the pile changes; the old meshes have to go
+      // back to the GPU or the island leaks a little every delivery. Materials are shared.
+      for (const log of [...this.stockpile.children]) disposeObject(log, { keepMaterials: true });
+      this.stockpile.clear();
       for (let i = 0; i < Math.min(logs, 40); i++) {
         const x = HOME.x + 1 + (i % 4) * .31, y = elevation(HOME.x + 1, HOME.z) + .16 + Math.floor(i / 8) * .27, z = HOME.z + .45 + Math.floor(i % 8 / 4) * 1.1;
         const log = mesh(new THREE.CylinderGeometry(.14, .15, .95, 8), bark, this.stockpile, x, y, z); log.rotation.x = Math.PI / 2;
