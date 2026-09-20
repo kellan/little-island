@@ -158,6 +158,49 @@ keeps stocked. If it cannot pay, the building **browns out**: its tasks do not
 start and it says why. That is the brief's "settlement that overbuilds slowly
 browns out" for about fifteen lines, and it is what earns the demolish verb.
 
+## The bloomery, explored
+
+The first recipe with two different inputs, and the test of whether the task
+model was worth building. The chain is four stages:
+
+```text
+tree  → (lumberjack hut) → log
+log   → (kiln)           → 2 charcoal
+bog   → (ore pit)        → ore
+ore + 2 charcoal → (bloomery) → iron bloom
+```
+
+Three buildings, three tasks, one new kind of site, three new wares — **and no
+new rules**. The village rulebook is the same 22 it was before them. That is the
+claim from the top of this document, tested by adding five buildings to a game
+that had one.
+
+What playing it turned up, in the order it hurt:
+
+- **Two workshops sent for the same log.** The sawmill and the kiln both asked
+  the hut for its only log in the same tick; one of them walked there for
+  nothing and gave the errand up on arrival. Fixed by making `spare` subtract
+  what an errand is already on its way to collect — the same idea as reserving a
+  tree, applied to a store. Wasted errands went from many to none, and the
+  sawmill's output went up with it.
+- **A two-input building can deadlock on the input nobody has.** The bloomery
+  listed ore first, could not get any, and sat there while four sacks of
+  charcoal waited at the kiln for it. `fetch-inputs` now looks down the whole
+  list of shortages for one somebody can actually supply. Blooms went from 3 to
+  4 in the same four minutes, and the kiln stopped backing up.
+- **A radius is a lifetime.** After four minutes the hut reported *0 trees in
+  range* and the ore pit *0 bogs in range*, and the entire chain starved from the
+  top. Nothing is wrong: this is depletion working, and it is the argument for
+  regrowth that matters, for a forester, and for coppice.
+- **The clearing has become vestigial.** Everything now lives in a building's
+  store; the stockpile at HOME holds nothing in the village rulebook. That is
+  where a warehouse belongs when one arrives.
+
+The bloomery is also where pull's strain is visible for the first time: one
+worker fetching two inputs from two different places spends most of the day
+walking. [RESOURCES.md](RESOURCES.md) predicted that would arrive with firewood.
+It arrives one stage earlier, with any two-input recipe.
+
 ## Farms
 
 I would build **(b), field with fertility**, and I think it is cheaper here than

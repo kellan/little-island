@@ -23,7 +23,7 @@ One noun per idea, used the same way in the code, the terminal and these docs.
 | Word | Means |
 | --- | --- |
 | **ware** | a thing that can be carried and stored: a **log**, a **stone** |
-| **site** | a place work is done on: a **tree**, a forage **patch**, and later a shoal, a plot. Depletion is its `amount` going down, regrowth is it coming back |
+| **site** | a place work is done on: a **tree**, a forage **patch**, a **bog** of iron, and later a shoal, a plot. Depletion is its `amount` going down, regrowth is it coming back |
 | **task** | the one shape all work takes, declared as data: a site, the wares it takes, how long, what it yields |
 | **pile** | a ware lying on the ground where it was dropped |
 | **building** | a place that gives out work and stores wares: a **lumberjack hut**, a **sawmill** |
@@ -69,7 +69,7 @@ rules run in the order they are listed. That ordering is the whole scheduler.
 | plan | `drop-impossible-jobs` | all | Cancels any job whose site or ware has gone, freeing whoever was sent for it. |
 | plan | `clock-on` | village | Sends a villager who has not started their day yet to their building to pick up the tool. |
 | plan | `list-loose-wares` | hauling, village | Notices a ware lying on the ground and adds fetching it to the work list. |
-| plan | `fetch-inputs` | village | A building short of an input sends its own worker to fetch a load of it. |
+| plan | `fetch-inputs` | village | A building short of an input sends its own worker to fetch a load of whichever shortage somebody can supply. |
 | plan | `assign-jobs` | all | Hands the most pressing queued job to the nearest free villager whose role takes that work. |
 | plan | `pick-a-task` | village | A building with a free worker starts the first of its tasks that can be done right now. |
 | act | `walk` | all | Moves a travelling villager toward their destination and turns them to face it. |

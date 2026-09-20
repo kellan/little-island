@@ -49,9 +49,15 @@ if (chosen.id === 'village' && !sim.world.buildings.length) {
   const hut = addBuilding(sim.world, 'lumberjack-hut', { x: HOME.x + 2.4, z: HOME.z - 1.5 });
   const mill = addBuilding(sim.world, 'sawmill', { x: HOME.x - 2.6, z: HOME.z + 1.2 });
   const forager = addBuilding(sim.world, 'foragers-hut', { x: HOME.x + .6, z: HOME.z + 2.6 });
+  const pit = addBuilding(sim.world, 'ore-pit', { x: HOME.x - 5.5, z: HOME.z - 4.5 });
+  const kiln = addBuilding(sim.world, 'kiln', { x: HOME.x + 3.4, z: HOME.z + 1.8 });
+  const bloomery = addBuilding(sim.world, 'bloomery', { x: HOME.x - 1.2, z: HOME.z - 3.4 });
   hire(sim.world, sim.world.villagers[0], hut);
   hire(sim.world, addVillager(sim.world, 'Wren', HOME), mill);
   hire(sim.world, addVillager(sim.world, 'Fen', HOME), forager);
+  hire(sim.world, addVillager(sim.world, 'Bryn', HOME), pit);
+  hire(sim.world, addVillager(sim.world, 'Cass', HOME), kiln);
+  hire(sim.world, addVillager(sim.world, 'Dov', HOME), bloomery);
 }
 
 const seconds = (text: string | undefined, fallback: number) => {

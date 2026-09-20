@@ -4,9 +4,10 @@
  * malformed world must never reach the rules. Invalid input returns null, and the
  * caller starts a fresh island rather than crashing on tick one.
  */
+import { BUILDINGS } from './tuning.ts';
 import { ROLES, TOOLS, WARES, type Activity, type Building, type Command, type Job, type Site, type Villager, type WarePile, type World } from './types.ts';
 
-const FORMAT_VERSION = 7;
+const FORMAT_VERSION = 8;
 const MAX_SITES = 400;
 const MAX_VILLAGERS = 64;
 const MAX_JOBS = 256;
@@ -37,7 +38,7 @@ function validActivity(activity: Activity | undefined): boolean {
 
 function validSite(site: Site): boolean {
   return finite(site.id, site.x, site.z, site.scale, site.variant)
-    && (site.kind === 'tree' || site.kind === 'patch')
+    && ['tree', 'patch', 'bog'].includes(site.kind)
     && counter(site.amount) && counter(site.max) && site.amount <= site.max
     && (site.reservedBy === null || finite(site.reservedBy));
 }
@@ -79,7 +80,7 @@ function validJob(job: Job): boolean {
 
 function validBuilding(building: Building): boolean {
   return finite(building.id, building.x, building.z, building.radius)
-    && (building.kind === 'lumberjack-hut' || building.kind === 'sawmill')
+    && building.kind in BUILDINGS
     && counter(building.capacity) && building.capacity > 0
     && (building.workerId === null || finite(building.workerId))
     && TOOLS.includes(building.tool)

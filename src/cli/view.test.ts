@@ -69,13 +69,16 @@ describe('the island in text', () => {
 });
 
 describe('the terminal client', () => {
-  it('plays a whole day at the hut from piped commands', () => {
+  it('plays the whole chain from piped commands, tree to iron', () => {
     const transcript = execFileSync('node', ['src/cli/play.ts', '--no-color'], {
-      input: 'huts\nuntil\nhuts\nquit\n', encoding: 'utf8', timeout: 30000,
+      input: 'buildings\nwait 240\nbuildings\ncheck\nquit\n', encoding: 'utf8', timeout: 60000,
     });
     expect(transcript).toContain('takes the axe from the hut');
-    expect(transcript).toContain('a log goes into the hut \u2014 1 of 5');
-    expect(transcript).toContain('the hut is full');
-    expect(transcript).toContain('store 5/5 full');
-  }, 30000);
+    expect(transcript).toContain('a log goes into the hut');
+    // Four stages, each handing on to the next.
+    expect(transcript).toContain('a log goes into the kiln');
+    expect(transcript).toContain('the kiln turns out');
+    expect(transcript).toContain('the bloomery turns out an iron bloom');
+    expect(transcript).toContain('all sound');
+  }, 60000);
 });

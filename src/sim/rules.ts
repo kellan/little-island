@@ -22,7 +22,7 @@ import { accepts, type Building, type WareId, type EmittedEvent, type Job, type 
 import {
   activeJobs, availableSite, dropWare, findBuilding, findJob, findPile, findSite, findVillager,
   hasRoom, heldIn, idleVillagers, jobForSite, loosePiles, openJobs, roomForYield, secondsToTicks,
-  shortOf, spare, taskIsReady, tasksFor, wantsOf, workplaceOf,
+  shortages, spare, taskIsReady, tasksFor, wantsOf, workplaceOf,
 } from './world.ts';
 
 /** Phases run in this order, every tick, always. */
@@ -93,6 +93,21 @@ function deliveryTarget(world: World, villager: Villager): Building | undefined 
   if (job?.kind === 'supply') return findBuilding(world, job.to);
   if (job?.kind === 'haul' && job.to !== null) return findBuilding(world, job.to);
   return workplaceOf(world, villager);
+}
+
+/**
+ * The first thing this building is short of that somebody actually has. Trying
+ * only the first shortage leaves a two-input workshop stuck on the one input
+ * nobody can supply while the other sits waiting to be collected.
+ */
+function fetchable(world: World, building: Building): { ware: WareId; source: Building } | undefined {
+  for (const ware of shortages(building)) {
+    const source = world.buildings
+      .filter(other => other.id !== building.id && spare(world, other, ware) > 0)
+      .sort((a, b) => distance(a, building) - distance(b, building) || a.id - b.id)[0];
+    if (source) return { ware, source };
+  }
+  return undefined;
 }
 
 /** The input a working building lacks right now, or null while it can work. */
@@ -605,24 +620,21 @@ const fetchInputs = defineRule<Building>({
   id: 'fetch-inputs',
   phase: 'plan',
   about: 'A building short of an input sends its own worker to fetch a load of it.',
-  subjects: (world) => world.buildings.filter(building => building.workerId !== null && shortOf(building) !== null),
+  subjects: (world) => world.buildings.filter(building => building.workerId !== null && shortages(building).length > 0),
   when: (world, building) => {
-    const ware = shortOf(building)!;
     if (!hasRoom(building)) return false;
     const worker = findVillager(world, building.workerId);
     if (!worker || worker.tool === null || worker.shiftDay !== world.day) return false;
     if (worker.jobId !== null || worker.carrying || worker.activity.kind === 'work') return false;
-    return world.buildings.some(other => other.id !== building.id && spare(other, ware) > 0);
+    return !!fetchable(world, building);
   },
   then: (world, building, ctx) => {
-    const ware = shortOf(building)!;
+    const errand = fetchable(world, building)!;
+    const { ware, source } = errand;
     const worker = findVillager(world, building.workerId)!;
-    const source = world.buildings
-      .filter(other => other.id !== building.id && spare(other, ware) > 0)
-      .sort((a, b) => distance(a, building) - distance(b, building) || a.id - b.id)[0];
     // A load, not an ingredient: one trip per meal's worth of walking is absurd.
     const wanted = (wantsOf(building)[ware] ?? 1) - building.stock[ware];
-    const amount = Math.max(1, Math.min(CARRY_LOAD, spare(source, ware), wanted, building.capacity - heldIn(building)));
+    const amount = Math.max(1, Math.min(CARRY_LOAD, spare(world, source, ware), wanted, building.capacity - heldIn(building)));
     const job: Job = {
       id: world.nextJobId++, kind: 'supply', ware, amount, from: source.id, to: building.id,
       state: 'assigned', assignee: worker.id, priority: JOB_PRIORITY.haul, createdTick: world.tick, finishedTick: null,

@@ -21,7 +21,7 @@ export {
   activeJobs, addBuilding, addSite, addVillager, availableSite, createWorld, dropWare,
   elapsedSeconds, findBuilding, findJob, findPile, findSite, findVillager, hasRoom, hashWorld,
   heldIn, hire, idleVillagers, jobForSite, liveSites, loosePiles, openJobs, roomForYield,
-  secondsToTicks, shortOf, spare, standingTrees, taskIsReady, tasksFor, totalWare, wantsOf,
+  secondsToTicks, shortages, shortOf, spare, standingTrees, taskIsReady, tasksFor, totalWare, wantsOf,
   workplaceOf,
 } from './world.ts';
 export * as tuning from './tuning.ts';

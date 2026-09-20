@@ -23,7 +23,7 @@ export function palette(color: boolean) {
 }
 
 const MAP_COLUMNS = 52, MAP_ROWS = 21, MAP_X = 17, MAP_Z = 13.6;
-const GLYPH = { conifer: '▲', broadleaf: '♣', patch: '•', marked: '◆', stump: ',', home: '⌂', hut: 'H', person: '@', log: '=', stone: 'o' };
+const GLYPH = { conifer: '▲', broadleaf: '♣', patch: '•', bog: '≈', marked: '◆', stump: ',', home: '⌂', hut: 'H', person: '@', log: '=', stone: 'o' };
 
 const column = (x: number) => Math.round((x + MAP_X) / (2 * MAP_X) * (MAP_COLUMNS - 1));
 const row = (z: number) => Math.round((z + MAP_Z) / (2 * MAP_Z) * (MAP_ROWS - 1));
@@ -44,13 +44,14 @@ function compass(from: { x: number; z: number }, to: { x: number; z: number }): 
 
 export function label(site: Site): string {
   if (site.kind === 'patch') return `patch #${site.id}`;
+  if (site.kind === 'bog') return `bog #${site.id}`;
   return `${site.variant === 0 ? 'fir' : 'oak'} #${site.id}`;
 }
 
 /** A building's short name: "hut", "sawmill". */
 export function shortKind(building: Building | undefined): string {
   if (!building) return 'store';
-  return { 'lumberjack-hut': 'hut', 'foragers-hut': 'forager', sawmill: 'sawmill' }[building.kind];
+  return { 'lumberjack-hut': 'hut', 'foragers-hut': 'forager', 'ore-pit': 'ore pit', sawmill: 'sawmill', kiln: 'kiln', bloomery: 'bloomery' }[building.kind];
 }
 
 /** What a ware is called when it is one thing you can pick up. */
@@ -60,6 +61,9 @@ const WARE_WORDS: Record<WareId, { one: string; many: (n: number) => string }> =
   stone: { one: 'a stone', many: n => `${n} stones` },
   // A mass noun: you gather forage, not "a forage".
   forage: { one: 'a basket of forage', many: n => `${n} baskets of forage` },
+  ore: { one: 'a lump of ore', many: n => `${n} lumps of ore` },
+  charcoal: { one: 'a sack of charcoal', many: n => `${n} sacks of charcoal` },
+  bloom: { one: 'an iron bloom', many: n => `${n} iron blooms` },
 };
 
 export function wareName(ware: WareId, amount = 1): string {
@@ -67,7 +71,10 @@ export function wareName(ware: WareId, amount = 1): string {
 }
 
 /** What the stroke of a given task sounds like in prose. */
-const STROKE = { fell: 'swings the axe', forage: 'works through the bracken', saw: 'works the saw' } as const;
+const STROKE = {
+  fell: 'swings the axe', forage: 'works through the bracken', saw: 'works the saw',
+  dig: 'cuts turf and rakes the bog', burn: 'tends the burn', smelt: 'works the bellows',
+} as const;
 
 /** What a job is for, in words: a numbered tree, or a ware on the ground. */
 export function jobTarget(world: World, job: Job): string {
@@ -105,6 +112,7 @@ export function renderMap(world: World, paint: Palette): string {
   };
   for (const site of world.sites) {
     if (site.kind === 'patch') { put(site.x, site.z, site.amount > 0 ? paint.amber(GLYPH.patch) : paint.dim(GLYPH.patch)); continue; }
+    if (site.kind === 'bog') { put(site.x, site.z, site.amount > 0 ? paint.water(GLYPH.bog) : paint.dim(GLYPH.bog)); continue; }
     if (site.amount <= 0) { put(site.x, site.z, paint.bark(GLYPH.stump)); continue; }
     if (jobForSite(world, site.id)) { put(site.x, site.z, paint.amber(GLYPH.marked)); continue; }
     put(site.x, site.z, paint.leaf(site.variant === 0 ? GLYPH.conifer : GLYPH.broadleaf));
@@ -117,7 +125,7 @@ export function renderMap(world: World, paint: Palette): string {
 }
 
 export function renderLegend(paint: Palette): string {
-  return paint.dim(`${GLYPH.conifer} ${GLYPH.broadleaf} tree   ${GLYPH.marked} marked   ${GLYPH.stump} stump   ${GLYPH.patch} forage   ${GLYPH.log} ${GLYPH.stone} ware on the ground   ${GLYPH.home} clearing   ${GLYPH.hut} hut   ${GLYPH.person} villager`);
+  return paint.dim(`${GLYPH.conifer} ${GLYPH.broadleaf} tree   ${GLYPH.marked} marked   ${GLYPH.stump} stump   ${GLYPH.patch} forage   ${GLYPH.bog} bog iron   ${GLYPH.log} ${GLYPH.stone} ware on the ground   ${GLYPH.home} clearing   ${GLYPH.hut} hut   ${GLYPH.person} villager`);
 }
 
 export function describeVillager(world: World, villager: Villager): string {
@@ -147,7 +155,7 @@ export function describeVillager(world: World, villager: Villager): string {
 /** How many of the sites this building's tasks want are still within its reach. */
 function sitesInRange(world: World, building: Building): string {
   const kinds = new Set(tasksFor(building).flatMap(task => task.site ? [task.site.kind] : []));
-  const plural = { tree: 'trees', patch: 'patches' };
+  const plural = { tree: 'trees', patch: 'patches', bog: 'bogs' };
   return [...kinds].map(kind => `${liveSites(world, kind).filter(site => distance(site, building) <= building.radius).length} ${plural[kind]}`).join(', ');
 }
 

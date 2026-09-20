@@ -9,14 +9,14 @@
 export type Vec2 = { x: number; z: number };
 
 /** Things that can be carried, stacked and counted. */
-export type WareId = 'log' | 'stone' | 'plank' | 'forage';
+export type WareId = 'log' | 'stone' | 'plank' | 'forage' | 'ore' | 'charcoal' | 'bloom';
 
 /**
  * A place in the world that work can be done on. A tree is one; so are the forage
  * patches, shoals, outcrops and farm plots that will follow. Depletion is `amount`
  * going down, and that is all it is.
  */
-export type SiteKind = 'tree' | 'patch';
+export type SiteKind = 'tree' | 'patch' | 'bog';
 
 export type Site = {
   id: number;
@@ -102,7 +102,7 @@ export type Villager = {
 };
 
 /** A building: somewhere that gives out work and stores what comes back. */
-export type BuildingKind = 'lumberjack-hut' | 'sawmill' | 'foragers-hut';
+export type BuildingKind = 'lumberjack-hut' | 'sawmill' | 'foragers-hut' | 'ore-pit' | 'kiln' | 'bloomery';
 
 export type Building = {
   id: number;
@@ -123,9 +123,9 @@ export type Building = {
 };
 
 /** What a worker carries to do their job. Kept at the building overnight. */
-export type ToolId = 'axe' | 'saw' | 'basket';
+export type ToolId = 'axe' | 'saw' | 'basket' | 'spade' | 'rake' | 'tongs';
 
-export const TOOLS: readonly ToolId[] = ['axe', 'saw', 'basket'];
+export const TOOLS: readonly ToolId[] = ['axe', 'saw', 'basket', 'spade', 'rake', 'tongs'];
 
 export type JobState = 'queued' | 'assigned' | 'done' | 'cancelled';
 export type JobKind = 'task' | 'haul' | 'supply';
@@ -189,7 +189,7 @@ export type SimEventKind = SimEvent['kind'];
 export type EmittedEvent = SimEvent extends infer E ? (E extends SimEvent ? Omit<E, 'tick'> : never) : never;
 
 export type World = {
-  version: 7;
+  version: 8;
   /** Whole ticks elapsed. Seconds are derived, never stored, so time cannot drift. */
   tick: number;
   /** Current state of the world's only random number generator. */
@@ -213,8 +213,8 @@ export type World = {
   stats: { treesFelled: number; logsDelivered: number; ordersQueued: number };
 };
 
-export const WARES: readonly WareId[] = ['log', 'stone', 'plank', 'forage'];
+export const WARES: readonly WareId[] = ['log', 'stone', 'plank', 'forage', 'ore', 'charcoal', 'bloom'];
 
 export function emptyStock(): Record<WareId, number> {
-  return { log: 0, stone: 0, plank: 0, forage: 0 };
+  return { log: 0, stone: 0, plank: 0, forage: 0, ore: 0, charcoal: 0, bloom: 0 };
 }

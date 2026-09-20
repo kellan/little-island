@@ -1,6 +1,6 @@
 import { nextRandom } from './rng.ts';
 import { HOME, distance, onLand } from './terrain.ts';
-import { BUILDINGS, ISLAND_SEED, PATCH_COUNT, TASKS, TICK_SECONDS, TREE_COUNT, type TaskSpec } from './tuning.ts';
+import { BOG_COUNT, BUILDINGS, ISLAND_SEED, PATCH_COUNT, TASKS, TICK_SECONDS, TREE_COUNT, type TaskSpec } from './tuning.ts';
 import { emptyStock, type Building, type BuildingKind, type Job, type Role, type Site, type SiteKind, type Vec2, type Villager, type WareId, type WarePile, type World } from './types.ts';
 
 /** Seconds of world time. Derived from whole ticks, so it can never drift. */
@@ -14,7 +14,7 @@ export function secondsToTicks(seconds: number): number {
 
 export function createWorld(seed = ISLAND_SEED): World {
   const world: World = {
-    version: 7,
+    version: 8,
     tick: 0,
     day: 1,
     seed,
@@ -48,6 +48,13 @@ export function createWorld(seed = ISLAND_SEED): World {
     if (distance({ x, z }, HOME) < 3.4) continue;
     if (world.sites.some(site => distance(site, { x, z }) < 1.4)) continue;
     addSite(world, 'patch', { x, z }, { amount: 4, scale: .7 + nextRandom(world) * .4 });
+  }
+  // Bog iron sits in the wet ground out toward the shore.
+  for (let attempt = 0; attempt < 300 && liveSites(world, 'bog').length < BOG_COUNT; attempt++) {
+    const x = (nextRandom(world) - .5) * 26, z = (nextRandom(world) - .5) * 21;
+    if (!onLand(x, z) || distance({ x, z }, HOME) < 7) continue;
+    if (world.sites.some(site => distance(site, { x, z }) < 1.8)) continue;
+    addSite(world, 'bog', { x, z }, { amount: 3, scale: .9 });
   }
   addVillager(world, 'Robin', HOME);
   return world;
@@ -124,16 +131,33 @@ export function addBuilding(world: World, kind: BuildingKind, at: Vec2): Buildin
 }
 
 /** What a building holds beyond what it wants to keep: free for anyone to fetch. */
-export function spare(building: Building, ware: WareId): number {
-  return Math.max(0, building.stock[ware] - (wantsOf(building)[ware] ?? 0));
+/**
+ * What a building holds beyond what it wants to keep, less whatever somebody is
+ * already on their way to collect. Without that second half two workshops send
+ * for the same log and one of them walks there for nothing.
+ */
+export function spare(world: World, building: Building, ware: WareId): number {
+  const promised = world.jobs
+    .filter(job => job.kind === 'supply' && job.from === building.id && job.ware === ware
+      && (job.state === 'queued' || job.state === 'assigned'))
+    .reduce((total, job) => total + (job.kind === 'supply' ? job.amount : 0), 0);
+  return Math.max(0, building.stock[ware] - (wantsOf(building)[ware] ?? 0) - promised);
 }
 
-/** The input this building is short of, if any. */
+/**
+ * Every input this building is below its target on. A list rather than one ware:
+ * a bloomery short of both ore and charcoal must not sit idle because the first
+ * of them happens to be unavailable.
+ */
+export function shortages(building: Building): WareId[] {
+  return (Object.entries(wantsOf(building)) as [WareId, number][])
+    .filter(([ware, target]) => building.stock[ware] < target)
+    .map(([ware]) => ware);
+}
+
+/** The first input this building is short of, if any. */
 export function shortOf(building: Building): WareId | null {
-  for (const [ware, target] of Object.entries(wantsOf(building)) as [WareId, number][]) {
-    if (building.stock[ware] < target) return ware;
-  }
-  return null;
+  return shortages(building)[0] ?? null;
 }
 
 /** Can the worker run the recipe right now? */

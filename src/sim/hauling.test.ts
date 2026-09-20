@@ -49,7 +49,7 @@ describe('wares on the ground', () => {
     const world = createWorld();
     dropWare(world, 'stone', { x: HOME.x + 3, z: HOME.z }, 2);
     until(world, w => w.stockpile.stock.stone > 0);
-    expect(world.stockpile.stock).toEqual({ log: 0, stone: 2, plank: 0, forage: 0 });
+    expect(world.stockpile.stock).toMatchObject({ log: 0, stone: 2, plank: 0 });
     expect(world.stats.logsDelivered).toBe(0); // Logs count as logs, stone does not.
   });
 

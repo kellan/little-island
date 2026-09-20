@@ -41,6 +41,7 @@ export const JOB_HISTORY_SECONDS = 1;
 export const ISLAND_SEED = 841;
 export const TREE_COUNT = 37;
 export const PATCH_COUNT = 14;
+export const BOG_COUNT = 5;
 
 export const DOOR_REACH = .6;
 
@@ -84,6 +85,26 @@ export const TASKS: Record<string, TaskSpec> = {
     // in the bracken for somebody else to make a second trip for.
     yields: [{ ware: 'forage', amount: 1, to: 'hands' }],
   },
+  dig: {
+    id: 'dig',
+    site: { kind: 'bog', take: 1 },
+    seconds: 9,
+    // Ore is heavy: it stays in the bog until somebody comes back for it.
+    yields: [{ ware: 'ore', amount: 1, to: 'ground' }],
+  },
+  burn: {
+    id: 'burn',
+    takes: [{ ware: 'log', amount: 1 }],
+    seconds: 12,
+    yields: [{ ware: 'charcoal', amount: 2, to: 'store' }],
+  },
+  smelt: {
+    id: 'smelt',
+    // The first recipe with two different inputs, which is the whole point of it.
+    takes: [{ ware: 'ore', amount: 1 }, { ware: 'charcoal', amount: 2 }],
+    seconds: 20,
+    yields: [{ ware: 'bloom', amount: 1, to: 'store' }],
+  },
   saw: {
     id: 'saw',
     takes: [{ ware: 'log', amount: 1 }],
@@ -120,6 +141,27 @@ export const BUILDINGS = {
     queue: 3,
     tasks: ['saw'],
   },
+  'ore-pit': {
+    capacity: 6,
+    radius: 10,
+    tool: 'spade',
+    queue: 0,
+    tasks: ['dig'],
+  },
+  'kiln': {
+    capacity: 10,
+    radius: 0,
+    tool: 'rake',
+    queue: 2,
+    tasks: ['burn'],
+  },
+  'bloomery': {
+    capacity: 12,
+    radius: 0,
+    tool: 'tongs',
+    queue: 2,
+    tasks: ['smelt'],
+  },
 } as const;
 
 /**
@@ -130,6 +172,8 @@ export const BUILDINGS = {
 export const SITE_KINDS = {
   tree: { regrowSeconds: 0 },
   patch: { regrowSeconds: 50 },
+  // Bog iron really does come back, over a lifetime rather than a season.
+  bog: { regrowSeconds: 240 },
 } as const;
 
 /** How much of a ware one villager can carry in one trip. */
