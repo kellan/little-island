@@ -18,7 +18,7 @@ Press `Ctrl-C` in that terminal to stop the server. To use another port, run `PO
 bin/check
 ```
 
-That runs the simulation tests, typechecks the project, and creates `dist/` for static hosting. What the tests cover, and the classes of bug they are aimed at, is in [docs/TESTING.md](docs/TESTING.md). `bin/play` opens the same island in a terminal. While the page is open, `window.island` exposes the live simulation and scene for console poking and browser tests. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts are optional, with system font fallbacks.
+That runs the simulation tests, typechecks the project, and creates `dist/` for static hosting. `bin/e2e` builds the site and plays it in a real browser — clicking a tree, watching the log come home, reloading — which needs `npx playwright install chromium` once per machine. What the tests cover, and the classes of bug they are aimed at, is in [docs/TESTING.md](docs/TESTING.md). `bin/play` opens the same island in a terminal. While the page is open, `window.island` exposes the live simulation and scene for console poking and browser tests. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts are optional, with system font fallbacks.
 
 ## Controls
 
@@ -122,7 +122,7 @@ The convex mainland permits direct walking paths without navigation machinery; d
 
 ## Play and previews
 
-[Play the island](https://kellan.github.io/little-island/). Pushes to main build, test, and deploy to GitHub Pages. Same-repository pull requests build a playable preview at /little-island/pr-preview/pr-N/; the Actions run summary has the link. Closing a PR removes its preview. Fork PRs receive read-only build/test CI. Actions are pinned to commit SHAs and use only the repository's short-lived GITHUB_TOKEN.
+[Play the island](https://kellan.github.io/little-island/). Pushes to main build, test, play the browser suite, and deploy to GitHub Pages; a failure in the browser run stops the deploy. Same-repository pull requests build a playable preview at /little-island/pr-preview/pr-N/; the Actions run summary has the link. Closing a PR removes its preview. Fork PRs receive read-only build/test CI. Actions are pinned to commit SHAs and use only the repository's short-lived GITHUB_TOKEN.
 
 ## What the first iteration taught us
 

@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$project_dir"
+
+# Builds the site, serves it, and plays it in a real browser.
+# First run on a new machine needs: npx playwright install chromium
+exec npx playwright test "$@"
