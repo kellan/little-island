@@ -23,7 +23,7 @@ export function palette(color: boolean) {
 }
 
 const MAP_COLUMNS = 52, MAP_ROWS = 21, MAP_X = 17, MAP_Z = 13.6;
-const GLYPH = { conifer: '▲', broadleaf: '♣', marked: '◆', stump: ',', home: '⌂', hut: 'H', person: '@', log: '=', stone: 'o' };
+const GLYPH = { conifer: '▲', broadleaf: '♣', patch: '•', marked: '◆', stump: ',', home: '⌂', hut: 'H', person: '@', log: '=', stone: 'o' };
 
 const column = (x: number) => Math.round((x + MAP_X) / (2 * MAP_X) * (MAP_COLUMNS - 1));
 const row = (z: number) => Math.round((z + MAP_Z) / (2 * MAP_Z) * (MAP_ROWS - 1));
@@ -43,18 +43,31 @@ function compass(from: { x: number; z: number }, to: { x: number; z: number }): 
 }
 
 export function label(site: Site): string {
+  if (site.kind === 'patch') return `patch #${site.id}`;
   return `${site.variant === 0 ? 'fir' : 'oak'} #${site.id}`;
 }
 
 /** A building's short name: "hut", "sawmill". */
 export function shortKind(building: Building | undefined): string {
-  return building ? building.kind.replace('lumberjack-hut', 'hut') : 'store';
+  if (!building) return 'store';
+  return { 'lumberjack-hut': 'hut', 'foragers-hut': 'forager', sawmill: 'sawmill' }[building.kind];
 }
 
 /** What a ware is called when it is one thing you can pick up. */
+const WARE_WORDS: Record<WareId, { one: string; many: (n: number) => string }> = {
+  log: { one: 'a log', many: n => `${n} logs` },
+  plank: { one: 'a plank', many: n => `${n} planks` },
+  stone: { one: 'a stone', many: n => `${n} stones` },
+  // A mass noun: you gather forage, not "a forage".
+  forage: { one: 'a basket of forage', many: n => `${n} baskets of forage` },
+};
+
 export function wareName(ware: WareId, amount = 1): string {
-  return amount === 1 ? `a ${ware}` : `${amount} ${ware}s`;
+  return amount === 1 ? WARE_WORDS[ware].one : WARE_WORDS[ware].many(amount);
 }
+
+/** What the stroke of a given task sounds like in prose. */
+const STROKE = { fell: 'swings the axe', forage: 'works through the bracken', saw: 'works the saw' } as const;
 
 /** What a job is for, in words: a numbered tree, or a ware on the ground. */
 export function jobTarget(world: World, job: Job): string {
@@ -91,6 +104,7 @@ export function renderMap(world: World, paint: Palette): string {
     if (col >= 0 && col < MAP_COLUMNS && r >= 0 && r < MAP_ROWS) cells[r][col] = glyph;
   };
   for (const site of world.sites) {
+    if (site.kind === 'patch') { put(site.x, site.z, site.amount > 0 ? paint.amber(GLYPH.patch) : paint.dim(GLYPH.patch)); continue; }
     if (site.amount <= 0) { put(site.x, site.z, paint.bark(GLYPH.stump)); continue; }
     if (jobForSite(world, site.id)) { put(site.x, site.z, paint.amber(GLYPH.marked)); continue; }
     put(site.x, site.z, paint.leaf(site.variant === 0 ? GLYPH.conifer : GLYPH.broadleaf));
@@ -103,7 +117,7 @@ export function renderMap(world: World, paint: Palette): string {
 }
 
 export function renderLegend(paint: Palette): string {
-  return paint.dim(`${GLYPH.conifer} ${GLYPH.broadleaf} tree   ${GLYPH.marked} marked   ${GLYPH.stump} stump   ${GLYPH.log} ${GLYPH.stone} ware on the ground   ${GLYPH.home} clearing   ${GLYPH.hut} hut   ${GLYPH.person} villager`);
+  return paint.dim(`${GLYPH.conifer} ${GLYPH.broadleaf} tree   ${GLYPH.marked} marked   ${GLYPH.stump} stump   ${GLYPH.patch} forage   ${GLYPH.log} ${GLYPH.stone} ware on the ground   ${GLYPH.home} clearing   ${GLYPH.hut} hut   ${GLYPH.person} villager`);
 }
 
 export function describeVillager(world: World, villager: Villager): string {
@@ -130,14 +144,21 @@ export function describeVillager(world: World, villager: Villager): string {
   return villager.restUntil > world.tick ? 'taking a breather' : 'taking it all in';
 }
 
+/** How many of the sites this building's tasks want are still within its reach. */
+function sitesInRange(world: World, building: Building): string {
+  const kinds = new Set(tasksFor(building).flatMap(task => task.site ? [task.site.kind] : []));
+  const plural = { tree: 'trees', patch: 'patches' };
+  return [...kinds].map(kind => `${liveSites(world, kind).filter(site => distance(site, building) <= building.radius).length} ${plural[kind]}`).join(', ');
+}
+
 /** One building: who works there, what is in the store, what is left to cut. */
 export function renderBuilding(world: World, building: Building, paint: Palette): string {
   const worker = findVillager(world, building.workerId);
   const held = heldIn(building);
   const store = held === building.capacity ? paint.warn(`${held}/${building.capacity} full`) : `${held}/${building.capacity}`;
-  const contents = Object.entries(building.stock).filter(([, count]) => count > 0).map(([ware, count]) => `${count} ${ware}${count === 1 ? '' : 's'}`).join(', ');
+  const contents = Object.entries(building.stock).filter(([, count]) => count > 0).map(([ware, count]) => wareName(ware as WareId, count)).join(', ');
   const note = building.waiting ? paint.warn(`waiting for ${building.waiting}`)
-    : building.radius > 0 ? paint.dim(`${standingTrees(world).filter(site => distance(site, building) <= building.radius).length} trees in range`)
+    : building.radius > 0 ? paint.dim(`${sitesInRange(world, building)} in range`)
     : paint.dim(tasksFor(building).map(task => {
       const takes = (task.takes ?? []).map(ingredient => ingredient.ware).join(' + ');
       const makes = (task.yields ?? []).map(yielded => yielded.ware).join(' + ');
@@ -247,6 +268,7 @@ function sentence(world: World, event: SimEvent): string | null {
       const shop = findBuilding(world, event.buildingId);
       return `the ${shortKind(shop)} is waiting for ${wareName(event.ware)}`;
     }
+    case 'ware-gathered': return `${who(event.villagerId)} gathers ${wareName(event.ware, event.amount)}`;
     case 'ware-used': return null; // Implied by what the building turns out.
     case 'work-stroke': return null; // Counted, not narrated one stroke at a time.
   }
@@ -255,17 +277,18 @@ function sentence(world: World, event: SimEvent): string | null {
 /** Events as prose. Runs of axe swings collapse into one line per villager. */
 export function renderEvents(world: World, events: SimEvent[], paint: Palette): string[] {
   const lines: string[] = [];
-  const swings = new Map<number, { count: number; tick: number }>();
+  const swings = new Map<number, { count: number; tick: number; task: string }>();
   const flushSwings = () => {
     for (const [villagerId, run] of swings) {
-      lines.push(`${paint.dim(`[${stamp(run.tick)}]`)} ${findVillager(world, villagerId)?.name ?? 'someone'} swings the axe \u00d7${run.count}`);
+      const doing = STROKE[run.task as keyof typeof STROKE] ?? `works at ${run.task}`;
+      lines.push(`${paint.dim(`[${stamp(run.tick)}]`)} ${findVillager(world, villagerId)?.name ?? 'someone'} ${doing} \u00d7${run.count}`);
     }
     swings.clear();
   };
   for (const event of events) {
     if (event.kind === 'work-stroke') {
-      const run = swings.get(event.villagerId) ?? { count: 0, tick: event.tick };
-      swings.set(event.villagerId, { count: run.count + 1, tick: run.tick });
+      const run = swings.get(event.villagerId) ?? { count: 0, tick: event.tick, task: event.task };
+      swings.set(event.villagerId, { count: run.count + 1, tick: run.tick, task: run.task });
       continue;
     }
     flushSwings();

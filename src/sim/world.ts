@@ -1,6 +1,6 @@
 import { nextRandom } from './rng.ts';
 import { HOME, distance, onLand } from './terrain.ts';
-import { BUILDINGS, ISLAND_SEED, TASKS, TICK_SECONDS, TREE_COUNT, type TaskSpec } from './tuning.ts';
+import { BUILDINGS, ISLAND_SEED, PATCH_COUNT, TASKS, TICK_SECONDS, TREE_COUNT, type TaskSpec } from './tuning.ts';
 import { emptyStock, type Building, type BuildingKind, type Job, type Role, type Site, type SiteKind, type Vec2, type Villager, type WareId, type WarePile, type World } from './types.ts';
 
 /** Seconds of world time. Derived from whole ticks, so it can never drift. */
@@ -14,7 +14,7 @@ export function secondsToTicks(seconds: number): number {
 
 export function createWorld(seed = ISLAND_SEED): World {
   const world: World = {
-    version: 6,
+    version: 7,
     tick: 0,
     day: 1,
     seed,
@@ -42,6 +42,13 @@ export function createWorld(seed = ISLAND_SEED): World {
     const variant = nextRandom(world) > .32 ? 0 : 1;
     addSite(world, 'tree', { x, z }, { scale, variant });
   }
+  for (let attempt = 0; attempt < 300 && liveSites(world, 'patch').length < PATCH_COUNT; attempt++) {
+    const x = (nextRandom(world) - .5) * 24, z = (nextRandom(world) - .5) * 19;
+    if (!onLand(x, z)) continue;
+    if (distance({ x, z }, HOME) < 3.4) continue;
+    if (world.sites.some(site => distance(site, { x, z }) < 1.4)) continue;
+    addSite(world, 'patch', { x, z }, { amount: 4, scale: .7 + nextRandom(world) * .4 });
+  }
   addVillager(world, 'Robin', HOME);
   return world;
 }
@@ -58,6 +65,7 @@ export function addVillager(world: World, name: string, at: Vec2, role: Role = '
     facing: 0,
     workplace: null,
     tool: null,
+    shiftDay: 0,
     activity: { kind: 'idle' },
     jobId: null,
     carrying: null,
@@ -69,9 +77,10 @@ export function addVillager(world: World, name: string, at: Vec2, role: Role = '
 
 /** Put something in the world that work can be done on. */
 export function addSite(world: World, kind: SiteKind, at: Vec2, extra: { amount?: number; scale?: number; variant?: number } = {}): Site {
+  const amount = extra.amount ?? 1;
   const site: Site = {
     id: world.nextSiteId++, kind, x: at.x, z: at.z,
-    amount: extra.amount ?? 1, scale: extra.scale ?? 1, variant: extra.variant ?? 0, reservedBy: null,
+    amount, max: amount, scale: extra.scale ?? 1, variant: extra.variant ?? 0, reservedBy: null,
   };
   world.sites.push(site);
   return site;
@@ -248,7 +257,7 @@ export function hashWorld(world: World): string {
   for (const villager of world.villagers) {
     mix(villager.id); mix(villager.x); mix(villager.z); mix(villager.facing); mixText(villager.role);
     mixText(villager.activity.kind); mix(villager.jobId ?? -1); mix(villager.carrying?.amount ?? 0);
-    mix(villager.workplace ?? -1); mixText(villager.tool ?? 'none');
+    mix(villager.workplace ?? -1); mixText(villager.tool ?? 'none'); mix(villager.shiftDay);
     if (villager.activity.kind === 'work') { mix(villager.activity.progress); mixText(villager.activity.task); }
     if (villager.activity.kind === 'travel') { mix(villager.activity.to.x); mix(villager.activity.to.z); }
   }

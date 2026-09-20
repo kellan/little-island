@@ -167,9 +167,15 @@ not have to be answered before this work starts.
    collapsed into `pick-a-task` / `work` / `finish-work`, and the lumberjack and
    the sawmill are rows in a task table. The village rulebook went from 24 rules
    to 21 while gaining the ability to hold any number of building types.
-2. **A forager's hut**, with a patch that depletes and regrows. The proof: a third
-   building type that costs zero new rules, and the first resource you can run out
-   of locally.
+2. ~~**A forager's hut**, with a patch that depletes and regrows.~~ **Done**, and
+   the claim held: the hut is a row in the building table and the task is a row in
+   the task table. One rule was added, `regrow-sites`, and it belongs to the world
+   rather than to the building — trees use it too, with a regrowth of zero.
+
+   Forage comes home **in hand** rather than being left on the ground, which is a
+   third yield destination and, we think, a property of the ware's weight rather
+   than of the building: heavy things get dropped and hauled, light things travel
+   with you.
 3. **Multiple `takes`, derived `wants`.** A bloomery-shaped recipe, in tests only.
 4. **Upkeep and brown-out**, with firewood gathered free from the forest floor.
 5. **Farms (b)**, which is where multiple workers per building has to be settled.

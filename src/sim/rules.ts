@@ -15,7 +15,7 @@ import { nextRandom } from './rng.ts';
 import { HOME, distance, onLand } from './terrain.ts';
 import {
   CARRY_SPEED, DAY_SECONDS, DOOR_REACH, JOB_HISTORY_SECONDS, JOB_PRIORITY, TASKS, type TaskSpec,
-  MAX_JOBS_PER_VILLAGER, PILE_REACH, REST_SECONDS, ROAM_RADIUS, ROAM_SPEED, STOCKPILE_REACH,
+  MAX_JOBS_PER_VILLAGER, PILE_REACH, REST_SECONDS, ROAM_RADIUS, ROAM_SPEED, SITE_KINDS, STOCKPILE_REACH,
   SWINGS_PER_SECOND, TREE_REACH, WALK_SPEED,
 } from './tuning.ts';
 import { accepts, type Building, type WareId, type EmittedEvent, type Job, type Site, type TravelPurpose, type Villager, type WarePile, type World } from './types.ts';
@@ -84,7 +84,7 @@ const travellers = (world: World) => world.villagers.filter(v => v.activity.kind
 const workers = (world: World) => world.villagers.filter(v => v.activity.kind === 'work');
 const liveJobs = (world: World) => world.jobs.filter(job => job.state === 'queued' || job.state === 'assigned');
 /** Free hands. Somebody who works at a building needs their tool before anything else. */
-const available = (world: World) => idleVillagers(world).filter(v => v.workplace === null || v.tool !== null);
+const available = (world: World) => idleVillagers(world).filter(v => v.workplace === null || (v.tool !== null && v.shiftDay === world.day));
 const targetOf = (job: Job) => job.kind === 'task' ? job.siteId ?? -1 : job.kind === 'haul' ? job.pileId : job.from;
 
 /** Where a carried ware is headed: the building that asked, or the carrier's own. */
@@ -118,10 +118,13 @@ function release(world: World, job: Job | undefined, villager: Villager | undefi
   if (villager) { villager.jobId = null; villager.activity = { kind: 'idle' }; }
 }
 
+/**
+ * Close a finished job. It deliberately leaves the activity alone: work that ends
+ * with something in your arms has already set off for somewhere to put it.
+ */
 function finish(world: World, job: Job | undefined, villager: Villager): void {
   if (job) { job.state = 'done'; job.assignee = null; job.finishedTick = world.tick; }
   villager.jobId = null;
-  villager.activity = { kind: 'idle' };
 }
 
 function travelTo(villager: Villager, to: { x: number; z: number }, stopWithin: number, speed: number, purpose: TravelPurpose): void {
@@ -157,7 +160,7 @@ const acceptCommands = defineRule<World>({
     for (const command of inbox) {
       if (command.kind === 'order-fell') {
         const site = findSite(world, command.siteId);
-        if (!site) { ctx.emit({ kind: 'order-rejected', siteId: command.siteId, reason: 'unknown-site' }); continue; }
+        if (!site || site.kind !== TASKS.fell.site?.kind) { ctx.emit({ kind: 'order-rejected', siteId: command.siteId, reason: 'unknown-site' }); continue; }
         if (site.amount <= 0) { ctx.emit({ kind: 'order-rejected', siteId: site.id, reason: 'already-spent' }); continue; }
         if (jobForSite(world, site.id)) { ctx.emit({ kind: 'order-rejected', siteId: site.id, reason: 'already-ordered' }); continue; }
         if (activeJobs(world).length >= MAX_JOBS_PER_VILLAGER * world.villagers.length) { ctx.emit({ kind: 'order-rejected', siteId: site.id, reason: 'queue-full' }); continue; }
@@ -307,7 +310,8 @@ const arriveAtWork = defineRule<Villager>({
     const task = job?.kind === 'task' ? TASKS[job.task] : undefined;
     const site = job?.kind === 'task' ? findSite(world, job.siteId) : undefined;
     const building = job?.kind === 'task' ? findBuilding(world, job.buildingId) : undefined;
-    if (!job || !task || (task.site && (!site || site.amount <= 0))) {
+    const wrongPlace = task?.site && (!site || site.amount <= 0 || site.kind !== task.site.kind);
+    if (!job || !task || wrongPlace) {
       release(world, job, villager);
       ctx.emit({ kind: 'job-abandoned', jobId: job?.id ?? -1, job: 'task', targetId: job ? targetOf(job) : -1, villagerId: villager.id });
       return;
@@ -355,7 +359,13 @@ const finishWork = defineRule<Villager>({
       }
     }
     for (const produced of task.yields ?? []) {
-      if (produced.to === 'ground') {
+      if (produced.to === 'hands' && !villager.carrying) {
+        villager.carrying = { ware: produced.ware, amount: produced.amount };
+        const home = building ?? undefined;
+        if (home) travelTo(villager, home, DOOR_REACH, CARRY_SPEED, 'deliver');
+        else travelTo(villager, world.stockpile, STOCKPILE_REACH, CARRY_SPEED, 'deliver');
+        ctx.emit({ kind: 'ware-gathered', ware: produced.ware, amount: produced.amount, villagerId: villager.id });
+      } else if (produced.to === 'ground') {
         const pile = dropWare(world, produced.ware, site ?? villager, produced.amount, building?.id ?? null);
         ctx.emit({ kind: 'ware-dropped', ware: pile.ware, pileId: pile.id, x: pile.x, z: pile.z });
       } else if (building) {
@@ -430,6 +440,7 @@ const storeDelivery = defineRule<Villager>({
       ctx.emit({ kind: 'ware-delivered', ware: load.ware, amount: load.amount, total: world.stockpile.stock[load.ware], villagerId: villager.id });
     }
     finish(world, findJob(world, villager.jobId), villager);
+    villager.activity = { kind: 'idle' };
     villager.restUntil = world.tick + secondsToTicks(REST_SECONDS);
   },
 });
@@ -465,6 +476,15 @@ const wanderWhenIdle = defineRule<Villager>({
   },
 });
 
+const regrowSites = defineRule<Site>({
+  id: 'regrow-sites',
+  phase: 'upkeep',
+  about: 'Lets a picked-over patch come back, slowly, so foraging moves rather than ends.',
+  subjects: (world) => world.sites.filter(site => site.amount < site.max && SITE_KINDS[site.kind].regrowSeconds > 0),
+  when: (world, site) => world.tick % secondsToTicks(SITE_KINDS[site.kind].regrowSeconds) === 0,
+  then: (_world, site) => { site.amount += 1; },
+});
+
 const forgetFinishedJobs = defineRule<World>({
   id: 'forget-finished-jobs',
   phase: 'upkeep',
@@ -481,8 +501,8 @@ const forgetFinishedJobs = defineRule<World>({
 const clockOn = defineRule<Villager>({
   id: 'clock-on',
   phase: 'plan',
-  about: 'Sends a villager with a workplace and no tool to their building to start the day.',
-  subjects: (world) => world.villagers.filter(v => v.workplace !== null && v.tool === null && !v.carrying),
+  about: 'Sends a villager who has not started their day yet to their building to pick up the tool.',
+  subjects: (world) => world.villagers.filter(v => v.workplace !== null && v.shiftDay !== world.day && !v.carrying),
   when: (world, villager) => villager.activity.kind === 'idle' && !!workplaceOf(world, villager),
   then: (world, villager) => {
     const hut = workplaceOf(world, villager)!;
@@ -499,8 +519,9 @@ const takeTool = defineRule<Villager>({
   then: (world, villager, ctx) => {
     const hut = workplaceOf(world, villager);
     villager.activity = { kind: 'idle' };
-    if (!hut || villager.tool !== null) return;
+    if (!hut || villager.shiftDay === world.day) return;
     villager.tool = hut.tool;
+    villager.shiftDay = world.day;
     ctx.emit({ kind: 'shift-started', villagerId: villager.id, buildingId: hut.id, tool: hut.tool });
   },
 });
@@ -512,7 +533,8 @@ const pickATask = defineRule<Building>({
   subjects: (world) => world.buildings.filter(building => building.workerId !== null),
   when: (world, building) => {
     const worker = findVillager(world, building.workerId);
-    if (!worker || worker.tool === null || worker.jobId !== null || worker.carrying) return false;
+    if (!worker || worker.tool === null || worker.shiftDay !== world.day) return false;
+    if (worker.jobId !== null || worker.carrying) return false;
     if (worker.activity.kind === 'work') return false;
     return tasksFor(building).some(task => taskIsReady(world, building, task));
   },
@@ -549,6 +571,7 @@ const storeInBuilding = defineRule<Villager>({
       if (!hasRoom(hut)) ctx.emit({ kind: 'store-full', buildingId: hut.id });
     }
     finish(world, findJob(world, villager.jobId), villager);
+    villager.activity = { kind: 'idle' };
     villager.restUntil = world.tick + secondsToTicks(REST_SECONDS);
   },
 });
@@ -561,7 +584,8 @@ const newDay = defineRule<World>({
   when: (world) => world.tick > 0 && world.tick % secondsToTicks(DAY_SECONDS) === 0,
   then: (world, _subject, ctx) => {
     world.day++;
-    // Anyone mid-job keeps their axe until they finish; the rest hand theirs in.
+    // The tools go back to the building. Anyone still working keeps theirs until
+    // they finish, and clocks on again when they next come free.
     for (const villager of world.villagers) {
       if (villager.workplace !== null && villager.activity.kind === 'idle' && !villager.carrying) villager.tool = null;
     }
@@ -700,6 +724,7 @@ export const VILLAGE: Rulebook = {
     finishRoaming,
     wanderWhenIdle,
     noteShortage,
+    regrowSites,
     newDay,
     forgetFinishedJobs,
   ],

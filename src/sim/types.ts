@@ -9,14 +9,14 @@
 export type Vec2 = { x: number; z: number };
 
 /** Things that can be carried, stacked and counted. */
-export type WareId = 'log' | 'stone' | 'plank';
+export type WareId = 'log' | 'stone' | 'plank' | 'forage';
 
 /**
  * A place in the world that work can be done on. A tree is one; so are the forage
  * patches, shoals, outcrops and farm plots that will follow. Depletion is `amount`
  * going down, and that is all it is.
  */
-export type SiteKind = 'tree';
+export type SiteKind = 'tree' | 'patch';
 
 export type Site = {
   id: number;
@@ -25,6 +25,8 @@ export type Site = {
   z: number;
   /** How much is left to take. Zero is spent: a felled tree, an empty patch. */
   amount: number;
+  /** What it grows back to. A tree never does; a patch does, slowly. */
+  max: number;
   /** Which of its kind: a fir or an oak. Rendering and flavour, not rules. */
   variant: number;
   /** Physical size. Work on a bigger site takes proportionally longer. */
@@ -80,6 +82,12 @@ export type Villager = {
   workplace: number | null;
   /** In hand. Picked up at the building when the day starts. */
   tool: ToolId | null;
+  /**
+   * The day they last clocked on. Keyed on the day rather than on holding a tool,
+   * so somebody still working at midnight clocks on when they next come free
+   * instead of keeping yesterday's axe for good.
+   */
+  shiftDay: number;
   x: number;
   z: number;
   /** Position at the previous tick, so a renderer can interpolate between ticks. */
@@ -94,7 +102,7 @@ export type Villager = {
 };
 
 /** A building: somewhere that gives out work and stores what comes back. */
-export type BuildingKind = 'lumberjack-hut' | 'sawmill';
+export type BuildingKind = 'lumberjack-hut' | 'sawmill' | 'foragers-hut';
 
 export type Building = {
   id: number;
@@ -115,9 +123,9 @@ export type Building = {
 };
 
 /** What a worker carries to do their job. Kept at the building overnight. */
-export type ToolId = 'axe' | 'saw';
+export type ToolId = 'axe' | 'saw' | 'basket';
 
-export const TOOLS: readonly ToolId[] = ['axe', 'saw'];
+export const TOOLS: readonly ToolId[] = ['axe', 'saw', 'basket'];
 
 export type JobState = 'queued' | 'assigned' | 'done' | 'cancelled';
 export type JobKind = 'task' | 'haul' | 'supply';
@@ -168,6 +176,7 @@ export type SimEvent = { tick: number } & (
   | { kind: 'store-full'; buildingId: number }
   | { kind: 'day-begins'; day: number }
   | { kind: 'ware-taken'; ware: WareId; amount: number; buildingId: number; villagerId: number }
+  | { kind: 'ware-gathered'; ware: WareId; amount: number; villagerId: number }
   | { kind: 'ware-used'; ware: WareId; amount: number; buildingId: number }
   | { kind: 'ware-made'; ware: WareId; amount: number; stored: number; buildingId: number; villagerId: number }
   | { kind: 'waiting-for'; ware: WareId; buildingId: number }
@@ -180,7 +189,7 @@ export type SimEventKind = SimEvent['kind'];
 export type EmittedEvent = SimEvent extends infer E ? (E extends SimEvent ? Omit<E, 'tick'> : never) : never;
 
 export type World = {
-  version: 6;
+  version: 7;
   /** Whole ticks elapsed. Seconds are derived, never stored, so time cannot drift. */
   tick: number;
   /** Current state of the world's only random number generator. */
@@ -204,8 +213,8 @@ export type World = {
   stats: { treesFelled: number; logsDelivered: number; ordersQueued: number };
 };
 
-export const WARES: readonly WareId[] = ['log', 'stone', 'plank'];
+export const WARES: readonly WareId[] = ['log', 'stone', 'plank', 'forage'];
 
 export function emptyStock(): Record<WareId, number> {
-  return { log: 0, stone: 0, plank: 0 };
+  return { log: 0, stone: 0, plank: 0, forage: 0 };
 }

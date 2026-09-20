@@ -6,7 +6,7 @@
  */
 import { ROLES, TOOLS, WARES, type Activity, type Building, type Command, type Job, type Site, type Villager, type WarePile, type World } from './types.ts';
 
-const FORMAT_VERSION = 6;
+const FORMAT_VERSION = 7;
 const MAX_SITES = 400;
 const MAX_VILLAGERS = 64;
 const MAX_JOBS = 256;
@@ -37,8 +37,8 @@ function validActivity(activity: Activity | undefined): boolean {
 
 function validSite(site: Site): boolean {
   return finite(site.id, site.x, site.z, site.scale, site.variant)
-    && site.kind === 'tree'
-    && counter(site.amount)
+    && (site.kind === 'tree' || site.kind === 'patch')
+    && counter(site.amount) && counter(site.max) && site.amount <= site.max
     && (site.reservedBy === null || finite(site.reservedBy));
 }
 
@@ -48,6 +48,7 @@ function validVillager(villager: Villager): boolean {
     && ROLES.includes(villager.role)
     && (villager.workplace === null || finite(villager.workplace))
     && (villager.tool === null || TOOLS.includes(villager.tool))
+    && counter(villager.shiftDay)
     && validActivity(villager.activity)
     && (villager.jobId === null || finite(villager.jobId))
     && (villager.carrying === null

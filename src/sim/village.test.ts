@@ -79,11 +79,13 @@ describe('a day at the lumberjack hut', () => {
   it('hands the axe back overnight and clocks on again the next day', () => {
     const { world } = withHut(2);
     until(world, w => w.villagers[0].tool !== null);
-    const events = run(world, secondsToTicks(DAY_SECONDS) + 60);
+    // Long enough for the day to turn and for the walk back to the hut to finish.
+    const events = run(world, secondsToTicks(DAY_SECONDS) + 400);
     expect(kinds(events)).toContain('day-begins');
     expect(world.day).toBe(2);
     expect(kinds(events).filter(kind => kind === 'shift-started').length).toBeGreaterThanOrEqual(1);
     expect(world.villagers[0].tool).toBe('axe');
+    expect(world.villagers[0].shiftDay, 'clocked on for the new day').toBe(2);
   });
 
   it('does nothing at all without somebody working there', () => {

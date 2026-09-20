@@ -16,7 +16,7 @@ function crowd(villagers: number): World {
   world.nextSiteId = 301;
   for (let i = 0; i < 300; i++) {
     const x = (i % 20 - 10) * 1.2 + .3, z = (Math.floor(i / 20) - 7) * 1.1;
-    world.sites.push({ id: i + 1, kind: 'tree', x, z, amount: 1, scale: 1, variant: 0, reservedBy: null });
+    world.sites.push({ id: i + 1, kind: 'tree', x, z, amount: 1, max: 1, scale: 1, variant: 0, reservedBy: null });
   }
   world.villagers = [];
   world.nextVillagerId = 1;

@@ -40,6 +40,7 @@ export const JOB_HISTORY_SECONDS = 1;
 
 export const ISLAND_SEED = 841;
 export const TREE_COUNT = 37;
+export const PATCH_COUNT = 14;
 
 export const DOOR_REACH = .6;
 
@@ -60,10 +61,11 @@ export type TaskSpec = {
   scaleWithSite?: boolean;
   /**
    * What the work produces. `ground` leaves it where the work happened, for
-   * somebody to fetch; `store` puts it straight into the building, which only
-   * makes sense for work done at the bench.
+   * somebody to fetch — right for anything heavy. `hands` means the worker
+   * carries it home themselves, which is right for a basket of berries. `store`
+   * puts it straight into the building, for work done at the bench.
    */
-  yields?: readonly { ware: WareId; amount: number; to: 'ground' | 'store' }[];
+  yields?: readonly { ware: WareId; amount: number; to: 'ground' | 'hands' | 'store' }[];
 };
 
 export const TASKS: Record<string, TaskSpec> = {
@@ -73,6 +75,14 @@ export const TASKS: Record<string, TaskSpec> = {
     seconds: CHOP_SECONDS,
     scaleWithSite: true,
     yields: [{ ware: 'log', amount: 1, to: 'ground' }],
+  },
+  forage: {
+    id: 'forage',
+    site: { kind: 'patch', take: 1 },
+    seconds: 6,
+    // Berries are light. You carry them home yourself rather than leaving them
+    // in the bracken for somebody else to make a second trip for.
+    yields: [{ ware: 'forage', amount: 1, to: 'hands' }],
   },
   saw: {
     id: 'saw',
@@ -96,6 +106,13 @@ export const BUILDINGS = {
     queue: 0,
     tasks: ['fell'],
   },
+  'foragers-hut': {
+    capacity: 6,
+    radius: 7,
+    tool: 'basket',
+    queue: 0,
+    tasks: ['forage'],
+  },
   'sawmill': {
     capacity: 8,
     radius: 0,
@@ -104,6 +121,19 @@ export const BUILDINGS = {
     tasks: ['saw'],
   },
 } as const;
+
+/**
+ * What each kind of place in the world does when it is left alone. A tree does
+ * nothing: fell it and it is gone. A patch comes back, slowly enough that the
+ * forager has to range further while it does.
+ */
+export const SITE_KINDS = {
+  tree: { regrowSeconds: 0 },
+  patch: { regrowSeconds: 50 },
+} as const;
+
+/** How much of a ware one villager can carry in one trip. */
+export const CARRY_LOAD = 4;
 
 /** A day is only a shift boundary for now: tools go back to the hut overnight. */
 export const DAY_SECONDS = 120;

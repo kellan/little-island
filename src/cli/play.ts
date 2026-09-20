@@ -48,8 +48,10 @@ const origin = loaded ? 'a saved island' : `seed ${seed}`;
 if (chosen.id === 'village' && !sim.world.buildings.length) {
   const hut = addBuilding(sim.world, 'lumberjack-hut', { x: HOME.x + 2.4, z: HOME.z - 1.5 });
   const mill = addBuilding(sim.world, 'sawmill', { x: HOME.x - 2.6, z: HOME.z + 1.2 });
+  const forager = addBuilding(sim.world, 'foragers-hut', { x: HOME.x + .6, z: HOME.z + 2.6 });
   hire(sim.world, sim.world.villagers[0], hut);
   hire(sim.world, addVillager(sim.world, 'Wren', HOME), mill);
+  hire(sim.world, addVillager(sim.world, 'Fen', HOME), forager);
 }
 
 const seconds = (text: string | undefined, fallback: number) => {

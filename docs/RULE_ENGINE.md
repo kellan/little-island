@@ -23,7 +23,7 @@ One noun per idea, used the same way in the code, the terminal and these docs.
 | Word | Means |
 | --- | --- |
 | **ware** | a thing that can be carried and stored: a **log**, a **stone** |
-| **site** | a place work is done on: a **tree**, and later a patch, a shoal, a plot. Depletion is its `amount` going down |
+| **site** | a place work is done on: a **tree**, a forage **patch**, and later a shoal, a plot. Depletion is its `amount` going down, regrowth is it coming back |
 | **task** | the one shape all work takes, declared as data: a site, the wares it takes, how long, what it yields |
 | **pile** | a ware lying on the ground where it was dropped |
 | **building** | a place that gives out work and stores wares: a **lumberjack hut**, a **sawmill** |
@@ -67,7 +67,7 @@ rules run in the order they are listed. That ordering is the whole scheduler.
 | --- | --- | --- | --- |
 | intake | `accept-commands` | all | Applies the orders the player queued since the last tick, one at a time, in order. |
 | plan | `drop-impossible-jobs` | all | Cancels any job whose site or ware has gone, freeing whoever was sent for it. |
-| plan | `clock-on` | village | Sends a villager with a workplace and no tool to their building to start the day. |
+| plan | `clock-on` | village | Sends a villager who has not started their day yet to their building to pick up the tool. |
 | plan | `list-loose-wares` | hauling, village | Notices a ware lying on the ground and adds fetching it to the work list. |
 | plan | `fetch-inputs` | village | A building short of an input asks for one from whichever building has a spare. |
 | plan | `assign-jobs` | all | Hands the most pressing queued job to the nearest free villager whose role takes that work. |
@@ -84,6 +84,7 @@ rules run in the order they are listed. That ordering is the whole scheduler.
 | resolve | `store-delivery` | all | Adds a carried ware to the stockpile the moment the villager reaches the clearing. |
 | resolve | `finish-roaming` | all | Ends a wander at its destination and buys the villager a moment of rest. |
 | upkeep | `wander-when-idle` | all | Sends a rested villager with nothing left to do on a short stroll near the clearing. |
+| upkeep | `regrow-sites` | village | Lets a picked-over patch come back, slowly, so foraging moves rather than ends. |
 | upkeep | `note-shortage` | village | Records what a building is waiting for, so a stalled workshop says why. |
 | upkeep | `new-day` | village | Turns the day over; tools stay at the building, so everyone clocks on again. |
 | upkeep | `forget-finished-jobs` | all | Prunes done and cancelled jobs a second after they end, keeping saved state small. |
@@ -112,7 +113,7 @@ takes to run any of them. `bin/play` can switch between
 them mid-session with `rulebook <id>`, which is the clearest demonstration that
 rules are data: the island does not change, only what happens on it.
 
-That is the entire game so far: twenty-two rules across three rulebooks, three
+That is the entire game so far: twenty-three rules across three rulebooks, four
 wares, three kinds of job, two kinds of building — and adding a building no
 longer adds a rule.
 

@@ -33,6 +33,7 @@ export function ledger(events: SimEvent[]): Record<WareId, number> {
   const delta = Object.fromEntries(WARES.map(ware => [ware, 0])) as Record<WareId, number>;
   for (const event of events) {
     if (event.kind === 'ware-dropped') delta[event.ware] += 1;
+    else if (event.kind === 'ware-gathered') delta[event.ware] += event.amount;
     else if (event.kind === 'ware-made') delta[event.ware] += event.amount;
     else if (event.kind === 'ware-used') delta[event.ware] -= event.amount;
   }
@@ -89,6 +90,7 @@ export function checkWorld(world: World): Violation[] {
   // A claim on a site or a pile means somebody is actually on their way.
   for (const site of world.sites) {
     if (!whole(site.amount)) fail('ware-counts-are-whole', `site ${site.id} has ${site.amount} left`);
+    if (site.amount > site.max) fail('sites-do-not-overgrow', `site ${site.id} has ${site.amount} of a maximum ${site.max}`);
     if (site.reservedBy === null) continue;
     if (!villagers.has(site.reservedBy)) fail('reservations-are-mutual', `site ${site.id} is claimed by villager ${site.reservedBy}, who does not exist`);
     else if (!live.some(job => job.kind === 'task' && job.siteId === site.id && job.assignee === site.reservedBy)) {

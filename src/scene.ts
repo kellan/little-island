@@ -92,6 +92,7 @@ export class IslandScene {
 
   buildTrees() {
     for (const t of this.world.sites) {
+      if (t.kind !== 'tree') continue; // Patches are not drawn yet; they are not trees.
       const group = new THREE.Group(); group.position.set(t.x, elevation(t.x, t.z), t.z); group.scale.setScalar(t.scale); group.userData.treeId = t.id; this.scene.add(group); this.treeGroups.set(t.id, group);
       const stump = mesh(new THREE.CylinderGeometry(.17, .23, .25, 7), bark, group, 0, .125, 0); mesh(new THREE.CircleGeometry(.16, 7), barkLight, stump, 0, .127, 0).rotation.x = -Math.PI / 2;
       const crown = new THREE.Group(); group.add(crown); this.treeCrowns.set(t.id, crown);
@@ -136,7 +137,7 @@ export class IslandScene {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set((clientX - rect.left) / rect.width * 2 - 1, -(clientY - rect.top) / rect.height * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObjects(this.pickables).find(h => (this.world.sites.find(site => site.id === h.object.userData.treeId)?.amount ?? 0) > 0);
+    const hit = this.raycaster.intersectObjects(this.pickables).find(h => { const site = this.world.sites.find(other => other.id === h.object.userData.treeId); return site?.kind === 'tree' && site.amount > 0; });
     return hit ? hit.object.userData.treeId as number : null;
   }
 

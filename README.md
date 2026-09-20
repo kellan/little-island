@@ -78,7 +78,9 @@ By default the terminal runs the `village` rulebook, which is where the economy
 is being designed. A villager assigned to a lumberjack hut walks there at the
 start of the day, picks up the axe, fells the nearest tree in range, hauls the
 log back, and stops when the store is full. A sawmill asks the hut for logs and
-saws them into planks:
+saws them into planks. A forager's hut works the berry patches nearest its door
+and carries the baskets home by hand, moving further out as the near patches are
+picked over and come back slowly behind it:
 
 ```text
 > wait 30
@@ -100,7 +102,7 @@ saws them into planks:
 ```
 
 `buildings` lists them, `hire <name> [building]` puts somebody to work, `build
-sawmill` puts one up, `wares` shows what is stored and what is lying about,
+foragers-hut` puts one up, `wares` shows what is stored and what is lying about,
 `spawn <name> [role]` adds another pair of hands, and `check` runs the invariants
 against whatever you have played into.
 
