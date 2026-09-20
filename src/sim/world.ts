@@ -1,7 +1,7 @@
-import { nextRandom } from './rng';
-import { HOME, distance, onLand } from './terrain';
-import { ISLAND_SEED, TICK_SECONDS, TREE_COUNT } from './tuning';
-import type { Job, Tree, TreeKind, Vec2, Villager, World } from './types';
+import { nextRandom } from './rng.ts';
+import { HOME, distance, onLand } from './terrain.ts';
+import { ISLAND_SEED, TICK_SECONDS, TREE_COUNT } from './tuning.ts';
+import type { Job, Tree, TreeKind, Vec2, Villager, World } from './types.ts';
 
 /** Seconds of world time. Derived from whole ticks, so it can never drift. */
 export function elapsedSeconds(world: World): number {

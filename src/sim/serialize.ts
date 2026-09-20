@@ -4,7 +4,7 @@
  * malformed world must never reach the rules. Invalid input returns null, and the
  * caller starts a fresh island rather than crashing on tick one.
  */
-import type { Activity, Command, Job, Tree, Villager, World } from './types';
+import type { Activity, Command, Job, Tree, Villager, World } from './types.ts';
 
 const FORMAT_VERSION = 2;
 const MAX_TREES = 400;

@@ -1,4 +1,4 @@
-import type { Vec2 } from './types';
+import type { Vec2 } from './types.ts';
 
 /** The clearing: where logs come home. Shared by the simulation and the renderer. */
 export const HOME: Vec2 = { x: -1.4, z: 2.2 };

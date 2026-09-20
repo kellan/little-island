@@ -1,6 +1,6 @@
 const params = new URLSearchParams(location.search);
 if (params.has('lab')) {
-  await import('./stress');
+  await import('./stress.ts');
 } else {
-  await import('./game');
+  await import('./game.ts');
 }

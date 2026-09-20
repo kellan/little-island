@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { HOME, elapsedSeconds, elevation, nextRandom, tuning, type Villager, type World } from './sim';
+import { HOME, elapsedSeconds, elevation, nextRandom, tuning, type Villager, type World } from './sim/index.ts';
 
 const mat = (color: string | number, roughness = 1) => new THREE.MeshStandardMaterial({ color, roughness, flatShading: true });
 const bark = mat('#845335'), barkLight = mat('#c58d58'), leaf = [mat('#72933f'), mat('#8aab4b'), mat('#4f7e48'), mat('#a6b95b')];

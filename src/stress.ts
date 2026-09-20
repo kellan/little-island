@@ -1,7 +1,7 @@
 import './stress.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createStressWorld, deserializeStress, hashStress, retarget, serializeStress, stepStress, type StressWorld } from './stress-simulation';
+import { createStressWorld, deserializeStress, hashStress, retarget, serializeStress, stepStress, type StressWorld } from './stress-simulation.ts';
 document.title = 'Little Island — technical proving ground';
 
 type Settings = { trees:number; agents:number; shadows:boolean; paused:boolean; autoOrbit:boolean };

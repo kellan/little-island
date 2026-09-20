@@ -7,16 +7,16 @@
  *   enqueue(sim, { kind: 'order-harvest', treeId });
  *   for (const event of advance(sim, dt)) { ...react... }
  */
-export * from './types';
-export { PHASES, RULES, defineRule } from './rules';
-export type { CompiledRule, Rule, RuleContext, RulePhase } from './rules';
-export { advance, alpha, createSimulation, enqueue, tick, tickTimes } from './engine';
-export type { Simulation } from './engine';
-export { serialize, deserialize } from './serialize';
-export { HOME, distance, elevation, onLand } from './terrain';
-export { nextRandom } from './rng';
+export * from './types.ts';
+export { PHASES, RULES, defineRule } from './rules.ts';
+export type { CompiledRule, Rule, RuleContext, RulePhase, RuleTrace } from './rules.ts';
+export { advance, alpha, createSimulation, enqueue, tick, tickTimes } from './engine.ts';
+export type { Simulation } from './engine.ts';
+export { serialize, deserialize } from './serialize.ts';
+export { HOME, distance, elevation, onLand } from './terrain.ts';
+export { nextRandom } from './rng.ts';
 export {
   activeJobs, addVillager, createWorld, elapsedSeconds, findJob, findTree, findVillager,
   hashWorld, idleVillagers, jobForTree, openJobs, secondsToTicks, standingTrees,
-} from './world';
-export * as tuning from './tuning';
+} from './world.ts';
+export * as tuning from './tuning.ts';

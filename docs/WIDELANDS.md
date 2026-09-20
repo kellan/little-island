@@ -76,6 +76,10 @@ Economy, and our `Job` is their Request plus Transfer.
 Each step is a handful of rules and ends with something playable. None of them
 requires rewriting what exists.
 
+Design each one in the terminal client first (`bin/play`): wares, queues and
+programs are exactly the kind of thing that is easier to read as text than to
+watch a villager do, and a day of settlement runs in a second there.
+
 **Step 1 — wares that exist.** Generalise `ResourceId` past `timber`, give
 `carrying` a proper ware identity, and let a stockpile hold several kinds.
 Add a second job kind (`haul`) so "fetch that thing and put it there" is a job

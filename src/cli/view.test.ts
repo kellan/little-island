@@ -1,0 +1,78 @@
+import { execFileSync } from 'node:child_process';
+import { describe, expect, it } from 'vitest';
+import { createWorld, tick, tickTimes, type SimEvent } from '../sim/index.ts';
+import { describeVillager, palette, renderEvents, renderMap, renderTrees, renderWorkList } from './view.ts';
+
+const paint = palette(false);
+const ordered = (treeId: number) => {
+  const world = createWorld();
+  world.inbox.push({ kind: 'order-harvest', treeId });
+  return world;
+};
+
+describe('the island in text', () => {
+  it('draws land, the clearing and the villager', () => {
+    const world = createWorld();
+    world.villagers[0].x = 6;
+    const map = renderMap(world, paint);
+    expect(map.split('\n')).toHaveLength(21);
+    expect(map).toContain('@');
+    expect(map).toContain('\u2302');
+    expect(map).toMatch(/[\u25b2\u2663]/);
+    expect(map.startsWith(' ')).toBe(true); // Sea in the corners.
+  });
+
+  it('marks ordered trees and leaves stumps behind', () => {
+    const world = ordered(0);
+    tick(world);
+    expect(renderMap(world, paint)).toContain('\u25c6');
+    expect(renderWorkList(world, paint)).toContain('#0');
+    tickTimes(world, 900);
+    expect(renderMap(world, paint)).toContain(',');
+    expect(renderMap(world, paint)).not.toContain('\u25c6');
+    expect(renderWorkList(world, paint)).toBe('empty');
+  });
+
+  it('names the nearest trees and says which are spoken for', () => {
+    const world = ordered(7);
+    tickTimes(world, 2);
+    const lines = renderTrees(world, paint, 4).split('\n');
+    expect(lines).toHaveLength(4);
+    expect(lines.filter(line => line.includes('marked'))).toHaveLength(1);
+    const distances = lines.map(line => Number(line.match(/([\d.]+) away/)![1]));
+    expect(distances).toEqual([...distances].sort((a, b) => a - b));
+  });
+
+  it('says what a villager is up to at each step of a job', () => {
+    const world = ordered(0);
+    const seen = new Set<string>();
+    for (let i = 0; i < 900; i++) { tick(world); seen.add(describeVillager(world, world.villagers[0]).split(',')[0].split('  ')[0]); }
+    expect([...seen].some(text => text.startsWith('walking to fir #0') || text.startsWith('walking to oak #0'))).toBe(true);
+    expect([...seen].some(text => text.startsWith('chopping'))).toBe(true);
+    expect(seen).toContain('carrying a log home');
+  });
+
+  it('turns events into prose and collapses the axe swings', () => {
+    const world = ordered(0);
+    const events: SimEvent[] = tickTimes(world, 900);
+    const lines = renderEvents(world, events, paint).map(line => line.replace(/^\[\d\d:\d\d\] /, ''));
+    expect(lines).toEqual([
+      '#0 goes on the work list',
+      'Robin sets off for #0',
+      expect.stringMatching(/^Robin swings the axe \u00d7\d+$/),
+      '#0 comes down',
+      'a log reaches the clearing \u2014 timber 1',
+    ]);
+  });
+});
+
+describe('the terminal client', () => {
+  it('plays a whole job from piped commands', () => {
+    const transcript = execFileSync('node', ['src/cli/play.ts', '--no-color'], {
+      input: 'chop 0\nuntil\nhash\nquit\n', encoding: 'utf8', timeout: 30000,
+    });
+    expect(transcript).toContain('#0 goes on the work list');
+    expect(transcript).toContain('a log reaches the clearing \u2014 timber 1');
+    expect(transcript).toContain('timber 1');
+  }, 30000);
+});

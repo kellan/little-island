@@ -4,10 +4,10 @@
  * tab's simulation budget hold? Numbers print with `npm test`.
  */
 import { describe, expect, it } from 'vitest';
-import { tickTimes } from './engine';
-import { HOME } from './terrain';
-import { addVillager, createWorld, hashWorld, standingTrees } from './world';
-import type { World } from './types';
+import { tickTimes } from './engine.ts';
+import { HOME } from './terrain.ts';
+import { addVillager, createWorld, hashWorld, standingTrees } from './world.ts';
+import type { World } from './types.ts';
 
 function crowd(villagers: number): World {
   const world = createWorld(5);

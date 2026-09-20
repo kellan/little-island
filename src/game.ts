@@ -8,8 +8,8 @@ import './style.css';
 import {
   advance, alpha, createSimulation, createWorld, deserialize, elapsedSeconds, enqueue,
   jobForTree, openJobs, serialize, tick, type SimEvent,
-} from './sim';
-import { IslandScene } from './scene';
+} from './sim/index.ts';
+import { IslandScene } from './scene.ts';
 
 const icons = {
   leaf:'<path d="M19 4C9 3 4 7 5 14c5 5 13 1 14-10Z"/><path d="m5 20 8-11"/>',

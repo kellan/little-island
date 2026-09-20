@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createStressWorld, deserializeStress, hashStress, serializeStress, stepStress } from './stress-simulation';
+import { createStressWorld, deserializeStress, hashStress, serializeStress, stepStress } from './stress-simulation.ts';
 
 describe('stress simulation', () => {
   it('is deterministic at benchmark scale', () => {

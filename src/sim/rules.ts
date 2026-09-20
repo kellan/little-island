@@ -7,24 +7,28 @@
  * order, and inside a phase in the order written here, which is the entire
  * scheduling story: deterministic, inspectable, and easy to re-order on purpose.
  */
-import { nextRandom } from './rng';
-import { HOME, distance, onLand } from './terrain';
+import { nextRandom } from './rng.ts';
+import { HOME, distance, onLand } from './terrain.ts';
 import {
   CARRY_SPEED, CHOP_SECONDS, JOB_HISTORY_SECONDS, MAX_JOBS_PER_VILLAGER, REST_SECONDS,
   ROAM_RADIUS, ROAM_SPEED, STOCKPILE_REACH, SWINGS_PER_SECOND, TREE_REACH, WALK_SPEED,
-} from './tuning';
-import type { EmittedEvent, Job, Tree, Villager, World } from './types';
-import { activeJobs, findJob, findTree, findVillager, idleVillagers, jobForTree, openJobs, secondsToTicks } from './world';
+} from './tuning.ts';
+import type { EmittedEvent, Job, Tree, Villager, World } from './types.ts';
+import { activeJobs, findJob, findTree, findVillager, idleVillagers, jobForTree, openJobs, secondsToTicks } from './world.ts';
 
 /** Phases run in this order, every tick, always. */
 export const PHASES = ['intake', 'plan', 'act', 'resolve', 'upkeep'] as const;
 export type RulePhase = (typeof PHASES)[number];
+
+/** Told, in order, which rules changed something this tick. Watching costs nothing. */
+export type RuleTrace = (step: { rule: string; phase: RulePhase; fired: number }) => void;
 
 export type RuleContext = {
   /** Seconds in one tick. The only source of time a rule may use. */
   dt: number;
   tick: number;
   emit(event: EmittedEvent): void;
+  trace?: RuleTrace;
 };
 
 export type Rule<T> = {
@@ -41,7 +45,8 @@ export type CompiledRule = {
   id: string;
   phase: RulePhase;
   about: string;
-  apply(world: World, ctx: RuleContext): void;
+  /** Runs the rule over its subjects and reports how many it acted on. */
+  apply(world: World, ctx: RuleContext): number;
 };
 
 export function defineRule<T>(rule: Rule<T>): CompiledRule {
@@ -50,9 +55,14 @@ export function defineRule<T>(rule: Rule<T>): CompiledRule {
     phase: rule.phase,
     about: rule.about,
     apply(world, ctx) {
+      let fired = 0;
       for (const subject of rule.subjects(world)) {
-        if (rule.when(world, subject, ctx)) rule.then(world, subject, ctx);
+        if (!rule.when(world, subject, ctx)) continue;
+        rule.then(world, subject, ctx);
+        fired++;
       }
+      if (fired && ctx.trace) ctx.trace({ rule: rule.id, phase: rule.phase, fired });
+      return fired;
     },
   };
 }

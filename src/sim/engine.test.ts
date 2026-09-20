@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import rulebookDoc from '../../docs/RULE_ENGINE.md?raw';
-import { PHASES, RULES } from './rules';
-import { advance, alpha, createSimulation, enqueue, tick, tickTimes } from './engine';
-import { createWorld, elapsedSeconds, hashWorld } from './world';
-import { deserialize, serialize } from './serialize';
-import { TICK_SECONDS } from './tuning';
-import type { SimEvent } from './types';
+import { PHASES, RULES } from './rules.ts';
+import { advance, alpha, createSimulation, enqueue, tick, tickTimes } from './engine.ts';
+import { createWorld, elapsedSeconds, hashWorld } from './world.ts';
+import { deserialize, serialize } from './serialize.ts';
+import { TICK_SECONDS } from './tuning.ts';
+import type { SimEvent } from './types.ts';
 
 const kinds = (events: SimEvent[]) => events.map(event => event.kind);
 

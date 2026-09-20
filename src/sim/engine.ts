@@ -6,10 +6,10 @@
  * 34ms produce the same world for the same total elapsed time, so the simulation
  * does not depend on the frame rate of the machine watching it.
  */
-import { RULES, type RuleContext } from './rules';
-import { MAX_CATCH_UP_SECONDS, TICK_SECONDS } from './tuning';
-import type { Command, SimEvent, World } from './types';
-import { createWorld } from './world';
+import { RULES, type RuleContext, type RuleTrace } from './rules.ts';
+import { MAX_CATCH_UP_SECONDS, TICK_SECONDS } from './tuning.ts';
+import type { Command, SimEvent, World } from './types.ts';
+import { createWorld } from './world.ts';
 
 export type Simulation = {
   world: World;
@@ -28,8 +28,8 @@ export function enqueue(sim: Simulation, command: Command): void {
   sim.world.inbox.push(command);
 }
 
-/** Run exactly one tick and return what happened. */
-export function tick(world: World): SimEvent[] {
+/** Run exactly one tick and return what happened. Pass `trace` to watch the rules fire. */
+export function tick(world: World, trace?: RuleTrace): SimEvent[] {
   const events: SimEvent[] = [];
   for (const villager of world.villagers) { villager.px = villager.x; villager.pz = villager.z; }
   world.tick++;
@@ -37,14 +37,15 @@ export function tick(world: World): SimEvent[] {
     dt: TICK_SECONDS,
     tick: world.tick,
     emit: (event) => { events.push({ tick: world.tick, ...event }); },
+    trace,
   };
   for (const rule of RULES) rule.apply(world, ctx);
   return events;
 }
 
-export function tickTimes(world: World, count: number): SimEvent[] {
+export function tickTimes(world: World, count: number, trace?: RuleTrace): SimEvent[] {
   const events: SimEvent[] = [];
-  for (let i = 0; i < count; i++) events.push(...tick(world));
+  for (let i = 0; i < count; i++) events.push(...tick(world, trace));
   return events;
 }
 

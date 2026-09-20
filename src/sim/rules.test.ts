@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { tick, tickTimes } from './engine';
-import { HOME, distance, onLand } from './terrain';
-import { MAX_JOBS_PER_VILLAGER } from './tuning';
-import { addVillager, createWorld, findTree, jobForTree } from './world';
-import type { SimEvent, World } from './types';
+import { tick, tickTimes } from './engine.ts';
+import { HOME, distance, onLand } from './terrain.ts';
+import { MAX_JOBS_PER_VILLAGER } from './tuning.ts';
+import { addVillager, createWorld, findTree, jobForTree } from './world.ts';
+import type { SimEvent, World } from './types.ts';
 
 const order = (world: World, treeId: number) => world.inbox.push({ kind: 'order-harvest', treeId });
 const kinds = (events: SimEvent[]) => events.map(event => event.kind);

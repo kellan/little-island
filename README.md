@@ -18,7 +18,7 @@ Press `Ctrl-C` in that terminal to stop the server. To use another port, run `PO
 bin/check
 ```
 
-That runs the simulation tests, typechecks the project, and creates `dist/` for static hosting. While the page is open, `window.island` exposes the live simulation and scene for console poking and browser tests. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts are optional, with system font fallbacks.
+That runs the simulation tests, typechecks the project, and creates `dist/` for static hosting. `bin/play` opens the same island in a terminal. While the page is open, `window.island` exposes the live simulation and scene for console poking and browser tests. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts are optional, with system font fallbacks.
 
 ## Controls
 
@@ -30,9 +30,57 @@ That runs the simulation tests, typechecks the project, and creates `dist/` for 
 
 The island saves to localStorage every five seconds, on deliveries and on leaving. Reload resumes the job, the work list, and any order still waiting in the inbox. All geometry is procedural.
 
+## Play it in a terminal
+
+```sh
+bin/play                      # a fresh island
+bin/play --seed 12            # a different one
+echo 'chop 0; until' | bin/play
+```
+
+The same rule engine, drawn in text. No build step: Node 22.18 and newer run the
+TypeScript directly, so the headless game starts in a third of a second.
+
+```text
+   ....·▲······♣······················▲······....
+   .....······▲········⌂@··············♣····.....
+    .....································▲·.....
+
+Little Island  00:00   timber 0   felled 0   standing 37
+  Robin   taking it all in
+  work list  empty
+> trees 3
+  oak #7     4.7 away  SE
+  fir #22    5.0 away  NW
+  oak #14    5.8 away  W
+> chop 22
+[00:00] #22 goes on the work list
+[00:00] Robin sets off for #22
+> trace on
+  tracing decisions only
+> until
+  tick 54
+    resolve arrive-at-tree       ×1
+  tick 217
+    resolve fell-tree            ×1
+    [00:07] #22 comes down
+  tick 276
+    resolve store-delivery       ×1
+    [00:09] a log reaches the clearing — timber 1
+```
+
+`help` lists the commands. The useful ones are `trees`, `chop <n>`, `cancel`,
+`wait [seconds]`, `until`, `save`/`load`, `hash`, and `rules` to print the
+rulebook. `trace on` narrates the engine's decisions and hides the rules that fire
+every tick for anyone walking; `trace all` shows everything.
+
+`spawn <name>` adds a villager. The engine has always allowed several; the browser
+game deliberately ships one. Economy rules will be designed here first, where a
+whole day of settlement runs in a second and the reasoning is printed.
+
 ## Architecture
 
-`src/sim/` is the game: a rule engine with no renderer, no DOM and no Three.js import. The state is plain JSON, the host queues commands, the engine runs whole 1/30s ticks and hands back events. `src/scene.ts` owns the Three.js objects and derives every frame from that state, interpolating between ticks. `src/game.ts` is the only file that touches the browser: clicks become commands, events become sound and messages. Terrain height is one function shared by both sides, so feet and props agree with the ground.
+`src/sim/` is the game: a rule engine with no renderer, no DOM and no Three.js import. It has two front ends — `src/cli/` in a terminal and `src/scene.ts` plus `src/game.ts` in a browser — and neither is allowed to hold game logic. The state is plain JSON, the host queues commands, the engine runs whole 1/30s ticks and hands back events. `src/scene.ts` owns the Three.js objects and derives every frame from that state, interpolating between ticks. `src/game.ts` is the only file that touches the browser: clicks become commands, events become sound and messages. `src/cli/view.ts` does the same job in text, and `src/cli/play.ts` is a readline loop over the same commands. Terrain height is one function shared by both sides, so feet and props agree with the ground.
 
 The rulebook, the tick, the command and event vocabulary, the save format and the known gaps are documented in [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
 

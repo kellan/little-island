@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$project_dir"
+
+# Node 22.18+ runs TypeScript directly, so the headless game needs no build step.
+if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 18) ? 0 : 1)' 2>/dev/null; then
+  printf 'The terminal island needs Node 22.18 or newer (this is %s).\n' "$(node -v 2>/dev/null || echo 'no node')" >&2
+  exit 1
+fi
+
+exec node src/cli/play.ts "$@"

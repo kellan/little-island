@@ -1,0 +1,214 @@
+/**
+ * Little Island, played in a terminal.
+ *
+ * The same rule engine the browser runs, with text instead of Three.js. It exists
+ * so the economy can be designed and argued about at the speed of typing, and so
+ * the rules can be watched firing, which no amount of looking at the 3D island
+ * will show you.
+ *
+ *   bin/play            a fresh island
+ *   bin/play --seed 12  a different one
+ *   echo 'chop 0; until; status' | bin/play
+ */
+import { createInterface } from 'node:readline';
+import { readFileSync, writeFileSync } from 'node:fs';
+import {
+  HOME, RULES, addVillager, createSimulation, createWorld, deserialize, enqueue, findTree,
+  hashWorld, jobForTree, serialize, tickTimes, tuning, type SimEvent, type World,
+} from '../sim/index.ts';
+import * as view from './view.ts';
+
+const argv = process.argv.slice(2);
+const option = (name: string) => { const at = argv.indexOf(name); return at < 0 ? undefined : argv[at + 1]; };
+const colour = !argv.includes('--no-color') && !process.env.NO_COLOR && !!process.stdout.isTTY;
+const paint = view.palette(colour);
+const say = (text = ''): void => { process.stdout.write(`${text}\n`); };
+const SAVE_FILE = 'island.json';
+
+function load(file: string): World | null {
+  try {
+    return deserialize(readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+const asked = Number(option('--seed'));
+const seed = Number.isFinite(asked) ? asked : tuning.ISLAND_SEED;
+const loaded = option('--load') ? load(option('--load')!) : null;
+if (option('--load') && !loaded) say(paint.warn(`could not read a world from ${option('--load')}`));
+const sim = createSimulation(loaded ?? createWorld(seed));
+const origin = loaded ? 'a saved island' : `seed ${seed}`;
+
+const seconds = (text: string | undefined, fallback: number) => {
+  const value = Number(text);
+  return Number.isFinite(value) && value > 0 ? Math.min(value, 600) : fallback;
+};
+const ticks = (count: number) => Math.max(1, Math.round(count / tuning.TICK_SECONDS));
+
+/**
+ * Off, or showing the rules as they fire. `decisions` hides the rules that apply
+ * every tick to anyone moving, leaving the engine's actual choices legible.
+ */
+let tracing: 'off' | 'decisions' | 'all' = 'off';
+
+/** Runs ticks. Quiet by default; narrates rule by rule while tracing. */
+function run(count: number): SimEvent[] {
+  const collected: SimEvent[] = [];
+  for (let i = 0; i < count; i++) {
+    const steps: string[] = [];
+    const events = tickTimes(sim.world, 1, tracing === 'off' ? undefined : (step) => {
+      if (tracing === 'all' || step.phase !== 'act') steps.push(view.renderTraceStep(step, paint));
+    });
+    if (tracing === 'off') { collected.push(...events); continue; }
+    if (steps.length) say(`  ${paint.dim(`tick ${sim.world.tick}`)}\n${steps.join('\n')}`);
+    // One tick holds at most one swing, so narrating them here is just noise.
+    const lines = view.renderEvents(sim.world, tracing === 'all' ? events : events.filter(event => event.kind !== 'chop-swing'), paint);
+    if (lines.length) say(lines.map(line => `    ${line}`).join('\n'));
+  }
+  return collected;
+}
+
+function report(events: SimEvent[]): void {
+  if (tracing !== 'off') return;
+  const lines = view.renderEvents(sim.world, events, paint);
+  if (lines.length) say(lines.join('\n'));
+  else say(paint.dim('  nothing much happens'));
+}
+
+/** Orders land on the next tick; running one makes the terminal feel answerable. */
+function settle(): void {
+  report(run(1));
+}
+
+function outstanding(world: World): boolean {
+  return world.jobs.some(job => job.state === 'queued' || job.state === 'assigned')
+    || world.villagers.some(villager => villager.carrying !== null)
+    || world.inbox.length > 0;
+}
+
+type Command = { about: string; run(args: string[]): void };
+
+const commands: Record<string, Command> = {
+  look: { about: 'draw the island', run: () => { say(); say(view.renderMap(sim.world, paint)); say(); say(view.renderLegend(paint)); } },
+  status: { about: 'time, timber, who is doing what', run: () => say(view.renderStatus(sim.world, paint)) },
+  trees: { about: 'trees [n] — the nearest standing trees and their numbers', run: (args) => say(view.renderTrees(sim.world, paint, seconds(args[0], 10))) },
+  chop: {
+    about: 'chop <n...> — put trees on the work list',
+    run: (args) => {
+      if (!args.length) return say(paint.dim('  chop which tree? try: trees'));
+      for (const raw of args) {
+        const id = Number(raw.replace('#', ''));
+        if (!Number.isInteger(id)) { say(paint.warn(`  ${raw} is not a tree number`)); continue; }
+        enqueue(sim, { kind: 'order-harvest', treeId: id });
+      }
+      settle();
+    },
+  },
+  cancel: {
+    about: 'cancel <n|all> — call off an order',
+    run: (args) => {
+      if (args[0] === 'all') enqueue(sim, { kind: 'cancel-all' });
+      else if (args.length) for (const raw of args) enqueue(sim, { kind: 'cancel-harvest', treeId: Number(raw.replace('#', '')) });
+      else return say(paint.dim('  cancel which one? a tree number, or all'));
+      settle();
+    },
+  },
+  wait: {
+    about: 'wait [seconds] — let the island get on with it (default 5)',
+    run: (args) => { report(run(ticks(seconds(args[0], 5)))); say(view.renderStatus(sim.world, paint)); },
+  },
+  until: {
+    about: 'until — wait for the work list to empty',
+    run: () => {
+      const events: SimEvent[] = [];
+      for (let i = 0; i < ticks(600) && outstanding(sim.world); i++) events.push(...run(1));
+      report(events);
+      say(view.renderStatus(sim.world, paint));
+    },
+  },
+  trace: {
+    about: 'trace [on|all|off|n] — watch the rules fire. on hides the walking, all shows everything',
+    run: (args) => {
+      const word = args[0];
+      if (word === 'off') { tracing = 'off'; return say(paint.dim('  tracing off')); }
+      if (word === 'all') { tracing = 'all'; return say(paint.dim('  tracing every rule')); }
+      if (word === 'on' || word === undefined) {
+        tracing = tracing === 'off' ? 'decisions' : 'off';
+        return say(paint.dim(`  tracing ${tracing === 'off' ? 'off' : 'decisions only'}`));
+      }
+      const was = tracing;
+      tracing = 'all';
+      run(Math.min(120, Math.max(1, Math.round(Number(word) || 1))));
+      tracing = was;
+    },
+  },
+  rules: { about: 'the rulebook, in the order it runs', run: () => say(view.renderRules(RULES, paint)) },
+  spawn: {
+    about: 'spawn [name] — another pair of hands (the engine allows it, the game does not)',
+    run: (args) => {
+      const villager = addVillager(sim.world, args[0] ?? `Villager ${sim.world.nextVillagerId}`, HOME);
+      say(`  ${villager.name} arrives at the clearing`);
+    },
+  },
+  save: {
+    about: `save [file] — write the world (default ${SAVE_FILE})`,
+    run: (args) => {
+      const file = args[0] ?? SAVE_FILE, text = serialize(sim.world);
+      try {
+        writeFileSync(file, text);
+        say(`  saved ${file} — ${(text.length / 1024).toFixed(1)} kB, hash ${hashWorld(sim.world)}`);
+      } catch (error) {
+        say(paint.warn(`  could not write ${file}: ${(error as Error).message}`));
+      }
+    },
+  },
+  load: {
+    about: `load [file] — read a world back (default ${SAVE_FILE})`,
+    run: (args) => {
+      const file = args[0] ?? SAVE_FILE, world = load(file);
+      if (!world) return say(paint.warn(`  ${file} is not a world this engine can run`));
+      sim.world = world;
+      sim.accumulator = 0;
+      say(`  loaded ${file} — hash ${hashWorld(world)}`);
+      say(view.renderStatus(sim.world, paint));
+    },
+  },
+  hash: { about: 'fingerprint the world, for comparing two runs', run: () => say(`  ${hashWorld(sim.world)}  tick ${sim.world.tick}`) },
+  help: {
+    about: 'this list',
+    run: () => {
+      for (const [name, command] of Object.entries(commands)) say(`  ${paint.bold(name.padEnd(8))}${command.about}`);
+      say(paint.dim('  several at once: chop 3; wait 20; status'));
+    },
+  },
+  quit: { about: 'leave the island as you found it', run: () => process.exit(0) },
+};
+const aliases: Record<string, string> = { l: 'look', s: 'status', w: 'wait', order: 'chop', fell: 'chop', '?': 'help', exit: 'quit', q: 'quit', run: 'until' };
+
+function perform(line: string): void {
+  const [word, ...args] = line.trim().split(/\s+/);
+  if (!word) return;
+  const command = commands[aliases[word] ?? word];
+  if (!command) return say(paint.dim(`  "${word}"? try help`));
+  command.run(args);
+}
+
+say();
+say(`${paint.bold('Little Island')} ${paint.dim(`— a settlement you type at. seed ${sim.world.seed}, ${sim.world.trees.length} trees.`)}`);
+say(paint.dim('help for commands. trees, then chop 0, then until.'));
+say();
+say(view.renderMap(sim.world, paint));
+say();
+say(view.renderStatus(sim.world, paint));
+
+// A terminal gets a live prompt; a pipe gets its commands echoed, so transcripts read back.
+const interactive = !!process.stdin.isTTY;
+const rl = createInterface({ input: process.stdin, output: interactive ? process.stdout : undefined, terminal: interactive, prompt: '> ' });
+if (interactive) rl.prompt();
+rl.on('line', (line) => {
+  if (!interactive) say(`${paint.dim('>')} ${line.trim()}`);
+  for (const part of line.split(';')) perform(part);
+  if (interactive) rl.prompt();
+});
+rl.on('close', () => { say(); say(paint.dim('the island keeps turning without you.')); });

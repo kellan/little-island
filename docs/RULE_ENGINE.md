@@ -57,6 +57,32 @@ rules run in the order they are listed. That ordering is the whole scheduler.
 
 That is the entire game so far: eleven rules, one resource, one kind of job.
 
+## Watching it think
+
+Rules report what they touched, so the terminal client (`bin/play`) can narrate a
+tick. This is the clearest view of the engine there is, and the browser cannot
+show it:
+
+```text
+> chop 22
+  tick 1
+    intake  accept-commands      ×1
+    plan    assign-jobs          ×1
+    [00:00] #22 goes on the work list
+    [00:00] Robin sets off for #22
+> until
+  tick 54
+    resolve arrive-at-tree       ×1
+  tick 217
+    resolve fell-tree            ×1
+    [00:07] #22 comes down
+  tick 276
+    resolve store-delivery       ×1
+    [00:09] a log reaches the clearing — timber 1
+```
+
+Tracing is an optional callback on the tick context. Passing nothing costs nothing.
+
 ## Commands in, events out
 
 The host never writes to the world. It queues commands, which are applied at the
@@ -110,7 +136,8 @@ Queued orders are part of the saved state, so a save never loses a click.
 
 ## How much does it hold?
 
-`npm test` prints the number. On this machine 120 villagers felling 240 trees in
+`npm test` prints the number, and `bin/play` will run a day of settlement in a
+second if you ask it to. On this machine 120 villagers felling 240 trees in
 a 300-tree forest costs about **0.06 ms per tick**, against a 33 ms budget at
 30 Hz. The naive parts — linear scans for trees and villagers, re-sorting
 candidates during assignment — are nowhere near mattering yet. Indexes can wait
