@@ -195,6 +195,69 @@ clock goes in from the start is an open question put to the user and **not yet a
 Do not assume it either way — if the engine can be built so the clock is addable later
 without a rewrite, that is the safest path.
 
+## How goods reach the buildings that consume them
+
+**Default: pull.** A building's stationed worker fetches its own inputs. Nobody delivers
+to them.
+
+The cook is the worked example. The hearth needs fish (or meat, or crops) and firewood, and
+the cook is the one who goes and gets both — walks to the weir, walks to the woodpile,
+walks back, cooks. The entire food chain is **one visible loop performed by one person**,
+which is the thing this prototype already does well with Robin and a log, scaled up rather
+than replaced by stockpile arithmetic.
+
+What this buys:
+
+- **Placement becomes the gameplay.** A hearth far from water and far from woods means the
+  cook spends the day walking and produces two meals. Throughput degrades smoothly with
+  distance — no error state, no "missing input" message, just a curve the player can read
+  by watching.
+- **No hauler concept is needed to ship the first version.** That is a large simplification.
+
+### Fetch a load, not an ingredient
+
+Required, or the model is pathological: a cook who walks to the weir once per meal makes
+the pacing absurd. The worker fetches a **load** — N fish — and works through it.
+
+This gives a readable batch-trip rhythm, and it makes **carry capacity a real number**.
+Carry capacity is in turn what later justifies baskets, pots, barrels, and a handcart, so
+the container goods get a job rather than existing for their own sake.
+
+### Firewood breaks it first, and that is the design
+
+Pull works well at three buildings and strains as the settlement grows. The useful part is
+*where* it strains: **firewood**, because it is the one good that nearly everything
+consumes. Food inputs are specific to the cook; firewood is universal. So the failure is
+localized and legible:
+
+1. **Cook fetches everything.** Fine at small scale.
+2. **Firewood breaks it** — five buildings sending workers to the same forest floor for the
+   same good, crossing paths all day.
+3. **Build a woodpile** (local store) and someone stocks it. That someone is the first
+   hauler.
+
+Logistics then arrives as the solution to a problem the player has *felt*, instead of as a
+system handed over in a tutorial. This costs nothing now: simply do not build haulers yet,
+and let the strain happen.
+
+### What errands are actually for
+
+An earlier draft of this brief claimed the fish weir proved a need for an errand queue.
+That was wrong — pull covers the weir, since the cook fetches from it like any other input.
+
+Errands still earn a place, but for a narrower case: goods with **no consuming building
+waiting on them**. Construction materials going to a build site. A farm's harvest lump that
+must reach a granary before it spoils while nobody is eating it yet. Those have no
+stationed worker whose job is to come and get them.
+
+So: build pull first. Errands are a second, smaller mechanism, not a co-equal one.
+
+**OPEN QUESTION — does fetching stay visible forever?** Keeping every fetch as real walking
+at Timberborn scale means hundreds of agents pathing for ingredients. `bin/stress` suggests
+5,000 lightweight workers is achievable, so it is likely affordable, but it is a design
+commitment as much as a performance one. The alternative is that local storage eventually
+*replaces* the trip with a draw rather than merely shortening it. Not resolved — ask.
+
 ## Notes for the rules engine
 
 - `src/simulation.ts` is rendering-independent, deterministic, plain JSON, driven on a
@@ -206,12 +269,10 @@ without a rewrite, that is the safest path.
   point of choosing authored chains is that the graph is a table someone can edit.
 - Goods move physically — carried by villagers, as Robin already carries a log. Do not
   model transfers as instantaneous stockpile arithmetic.
-- **Two kinds of work, and the engine needs both from the start.** *Stationed* work means
-  a villager belongs to a building and goes there daily. *Errands* are one-off jobs any
-  free villager can claim: empty the weir, haul this, fetch that. Timberborn is all
-  stationed; The Settlers leans on carriers. The fish weir is the cheapest thing that
-  proves the need — assign it a dedicated worker and it is just a worse pier. Retrofitting
-  an errand queue onto a purely stationed model is miserable, so do not start stationed-only.
+- **Two kinds of work.** *Stationed* work means a villager belongs to a building, fetches
+  its inputs, and works there. *Errands* are one-off jobs any free villager can claim.
+  See "How goods reach the buildings that consume them" above for which is which — most
+  hauling is stationed pull, and errands are a narrower category than they first appear.
 
 ## First slice
 
