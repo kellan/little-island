@@ -15,7 +15,7 @@ import {
   addBuilding, addVillager, createWorld, findBuilding, hire, liveSites, shortages,
   spare, taskIsReady, wantsOf,
 } from './world.ts';
-import type { Building, SimEvent, World } from './types.ts';
+import type { SimEvent, World } from './types.ts';
 
 const rules = VILLAGE.rules;
 const run = (world: World, count: number) => tickTimes(world, count, { rules });
