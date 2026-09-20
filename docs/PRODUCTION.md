@@ -117,6 +117,39 @@ building keeps on hand are exactly the wares its tasks take. Widelands does the
 same, and it removes a whole class of "the recipe changed and the queue didn't"
 bug. `fetch-inputs` then needs no change beyond "the first want that is unmet".
 
+## Pull, measured
+
+[RESOURCES.md](RESOURCES.md) settled this after the first version was built: a
+building's stationed worker fetches its own inputs, and nobody delivers to them.
+Errands are the narrower mechanism, for goods with no consuming building waiting
+on them.
+
+That overturned what was here. `fetch-inputs` used to queue the supply job for
+whichever free villager was nearest, which is why the lumberjack kept doing the
+sawmill's fetching while the sawyer stood at the mill — the same
+nearest-hands-win effect that made dedicated carriers look worthless when it was
+measured earlier.
+
+Same island, same three workers, time to planks:
+
+| | planks at 60s | planks at 90s |
+| --- | --- | --- |
+| errand: nearest free villager | 4 | 6 |
+| pull: the mill's own worker | 5 | 8, store full |
+
+Modest, and the mechanism matters more than the margin: under pull the lumberjack
+never leaves the forest. The gap would grow with the distance between buildings,
+which is the point — placement becomes the decision rather than a detail.
+
+A fetch takes a **load**, not an ingredient: up to `CARRY_LOAD`, capped by what
+the source can spare, what the asking building still wants, and the room it has
+left. That is what makes carry capacity a real number, and later gives baskets,
+pots and handcarts something to be for.
+
+What is still an errand, and should be: a log lying where it fell. It is a
+building's output in transit with nobody waiting on it, which is exactly the
+category the notes reserve for errands.
+
 ## Upkeep is an input with a different cadence
 
 Firewood does not need new machinery. `upkeep: [{ ware: 'firewood', amount: 1 }]`
@@ -176,7 +209,9 @@ not have to be answered before this work starts.
    third yield destination and, we think, a property of the ware's weight rather
    than of the building: heavy things get dropped and hauled, light things travel
    with you.
-3. **Multiple `takes`, derived `wants`.** A bloomery-shaped recipe, in tests only.
+3. **Multiple `takes`, derived `wants`.** `wants` is derived already and the task
+   table takes a list of ingredients; what is missing is a bloomery-shaped recipe
+   to prove it, in tests.
 4. **Upkeep and brown-out**, with firewood gathered free from the forest floor.
 5. **Farms (b)**, which is where multiple workers per building has to be settled.
 
