@@ -74,7 +74,7 @@ export function jobTarget(world: World, job: Job): string {
   if (job.kind === 'task') return job.siteId === null ? `${job.task} at the bench` : `#${job.siteId}`;
   if (job.kind === 'supply') {
     const to = findBuilding(world, job.to);
-    return `${wareName(job.ware)} for the ${to ? to.kind.replace('lumberjack-', '') : 'store'}`;
+    return `${wareName(job.ware, job.amount)} for the ${shortKind(to)}`;
   }
   const pile = findPile(world, job.pileId);
   if (pile) return wareName(pile.ware, pile.amount);
@@ -263,7 +263,7 @@ function sentence(world: World, event: SimEvent): string | null {
       const shop = findBuilding(world, event.buildingId);
       return `the ${shortKind(shop)} turns out ${wareName(event.ware, event.amount)} \u2014 ${event.stored} in store`;
     }
-    case 'supply-asked': return `the ${shortKind(findBuilding(world, event.to))} asks the ${shortKind(findBuilding(world, event.from))} for ${wareName(event.ware)}`;
+    case 'supply-asked': return `the ${shortKind(findBuilding(world, event.to))} sends for ${wareName(event.ware, event.amount)} from the ${shortKind(findBuilding(world, event.from))}`;
     case 'waiting-for': {
       const shop = findBuilding(world, event.buildingId);
       return `the ${shortKind(shop)} is waiting for ${wareName(event.ware)}`;

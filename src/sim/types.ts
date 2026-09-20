@@ -135,7 +135,7 @@ export type JobTarget =
   /** Perform a building's task. `siteId` is set when the task works on a place. */
   | { kind: 'task'; task: string; siteId: number | null; buildingId: number | null }
   | { kind: 'haul'; pileId: number; to: number | null }
-  | { kind: 'supply'; ware: WareId; from: number; to: number };
+  | { kind: 'supply'; ware: WareId; amount: number; from: number; to: number };
 
 export type Job = JobTarget & {
   id: number;
@@ -180,7 +180,7 @@ export type SimEvent = { tick: number } & (
   | { kind: 'ware-used'; ware: WareId; amount: number; buildingId: number }
   | { kind: 'ware-made'; ware: WareId; amount: number; stored: number; buildingId: number; villagerId: number }
   | { kind: 'waiting-for'; ware: WareId; buildingId: number }
-  | { kind: 'supply-asked'; jobId: number; ware: WareId; from: number; to: number }
+  | { kind: 'supply-asked'; jobId: number; ware: WareId; amount: number; from: number; to: number }
 );
 
 export type SimEventKind = SimEvent['kind'];

@@ -69,7 +69,7 @@ rules run in the order they are listed. That ordering is the whole scheduler.
 | plan | `drop-impossible-jobs` | all | Cancels any job whose site or ware has gone, freeing whoever was sent for it. |
 | plan | `clock-on` | village | Sends a villager who has not started their day yet to their building to pick up the tool. |
 | plan | `list-loose-wares` | hauling, village | Notices a ware lying on the ground and adds fetching it to the work list. |
-| plan | `fetch-inputs` | village | A building short of an input asks for one from whichever building has a spare. |
+| plan | `fetch-inputs` | village | A building short of an input sends its own worker to fetch a load of it. |
 | plan | `assign-jobs` | all | Hands the most pressing queued job to the nearest free villager whose role takes that work. |
 | plan | `pick-a-task` | village | A building with a free worker starts the first of its tasks that can be done right now. |
 | act | `walk` | all | Moves a travelling villager toward their destination and turns them to face it. |

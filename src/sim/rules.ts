@@ -15,14 +15,14 @@ import { nextRandom } from './rng.ts';
 import { HOME, distance, onLand } from './terrain.ts';
 import {
   CARRY_SPEED, DAY_SECONDS, DOOR_REACH, JOB_HISTORY_SECONDS, JOB_PRIORITY, TASKS, type TaskSpec,
-  MAX_JOBS_PER_VILLAGER, PILE_REACH, REST_SECONDS, ROAM_RADIUS, ROAM_SPEED, SITE_KINDS, STOCKPILE_REACH,
+  CARRY_LOAD, MAX_JOBS_PER_VILLAGER, PILE_REACH, REST_SECONDS, ROAM_RADIUS, ROAM_SPEED, SITE_KINDS, STOCKPILE_REACH,
   SWINGS_PER_SECOND, TREE_REACH, WALK_SPEED,
 } from './tuning.ts';
 import { accepts, type Building, type WareId, type EmittedEvent, type Job, type Site, type TravelPurpose, type Villager, type WarePile, type World } from './types.ts';
 import {
   activeJobs, availableSite, dropWare, findBuilding, findJob, findPile, findSite, findVillager,
   hasRoom, heldIn, idleVillagers, jobForSite, loosePiles, openJobs, roomForYield, secondsToTicks,
-  shortOf, spare, taskIsReady, tasksFor, workplaceOf,
+  shortOf, spare, taskIsReady, tasksFor, wantsOf, workplaceOf,
 } from './world.ts';
 
 /** Phases run in this order, every tick, always. */
@@ -595,28 +595,42 @@ const newDay = defineRule<World>({
 
 /* ------------------------------------------------- making things */
 
+/**
+ * Pull, not delivery: a building's own worker goes and gets what it is short of.
+ * Nobody brings it to them. That makes placement the decision — a workshop far
+ * from its inputs spends the day walking — and it means the settlement needs no
+ * hauler concept to run a chain end to end.
+ */
 const fetchInputs = defineRule<Building>({
   id: 'fetch-inputs',
   phase: 'plan',
-  about: 'A building short of an input asks for one from whichever building has a spare.',
+  about: 'A building short of an input sends its own worker to fetch a load of it.',
   subjects: (world) => world.buildings.filter(building => building.workerId !== null && shortOf(building) !== null),
   when: (world, building) => {
     const ware = shortOf(building)!;
     if (!hasRoom(building)) return false;
-    if (world.jobs.some(job => job.kind === 'supply' && job.to === building.id && job.state !== 'done' && job.state !== 'cancelled')) return false;
+    const worker = findVillager(world, building.workerId);
+    if (!worker || worker.tool === null || worker.shiftDay !== world.day) return false;
+    if (worker.jobId !== null || worker.carrying || worker.activity.kind === 'work') return false;
     return world.buildings.some(other => other.id !== building.id && spare(other, ware) > 0);
   },
   then: (world, building, ctx) => {
     const ware = shortOf(building)!;
+    const worker = findVillager(world, building.workerId)!;
     const source = world.buildings
       .filter(other => other.id !== building.id && spare(other, ware) > 0)
       .sort((a, b) => distance(a, building) - distance(b, building) || a.id - b.id)[0];
+    // A load, not an ingredient: one trip per meal's worth of walking is absurd.
+    const wanted = (wantsOf(building)[ware] ?? 1) - building.stock[ware];
+    const amount = Math.max(1, Math.min(CARRY_LOAD, spare(source, ware), wanted, building.capacity - heldIn(building)));
     const job: Job = {
-      id: world.nextJobId++, kind: 'supply', ware, from: source.id, to: building.id,
-      state: 'queued', assignee: null, priority: JOB_PRIORITY.haul, createdTick: world.tick, finishedTick: null,
+      id: world.nextJobId++, kind: 'supply', ware, amount, from: source.id, to: building.id,
+      state: 'assigned', assignee: worker.id, priority: JOB_PRIORITY.haul, createdTick: world.tick, finishedTick: null,
     };
     world.jobs.push(job);
-    ctx.emit({ kind: 'supply-asked', jobId: job.id, ware, from: source.id, to: building.id });
+    worker.jobId = job.id;
+    travelTo(worker, source, DOOR_REACH, WALK_SPEED, 'fetch');
+    ctx.emit({ kind: 'supply-asked', jobId: job.id, ware, amount, from: source.id, to: building.id });
   },
 });
 
@@ -638,10 +652,11 @@ const collectFromStore = defineRule<Villager>({
       ctx.emit({ kind: 'job-abandoned', jobId: job.id, job: 'supply', targetId: job.from, villagerId: villager.id });
       return;
     }
-    source.stock[job.ware] -= 1;
-    villager.carrying = { ware: job.ware, amount: 1 };
+    const taken = Math.min(job.amount, source.stock[job.ware]);
+    source.stock[job.ware] -= taken;
+    villager.carrying = { ware: job.ware, amount: taken };
     travelTo(villager, destination, DOOR_REACH, CARRY_SPEED, 'deliver');
-    ctx.emit({ kind: 'ware-taken', ware: job.ware, amount: 1, buildingId: source.id, villagerId: villager.id });
+    ctx.emit({ kind: 'ware-taken', ware: job.ware, amount: taken, buildingId: source.id, villagerId: villager.id });
   },
 });
 

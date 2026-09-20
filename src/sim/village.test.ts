@@ -195,3 +195,42 @@ describe('the sawmill', () => {
     expect(restored.buildings[1].stock.plank).toBe(findBuilding(world, mill.id)!.stock.plank);
   });
 });
+
+/* ------------------------------------------------------- pull, not delivery */
+
+describe('fetching inputs', () => {
+  it('sends the building’s own worker, even when somebody else is nearer', () => {
+    const { world, hut, mill } = withMill();
+    const sawyer = world.villagers.find(villager => villager.workplace === mill.id)!;
+    // An idle pair of hands loitering at the hut, closer to the logs than the sawyer.
+    const loiterer = addVillager(world, 'Fen', { x: hut.x, z: hut.z });
+    until(world, w => w.jobs.some(job => job.kind === 'supply'), 12000);
+
+    const supply = world.jobs.find(job => job.kind === 'supply')!;
+    expect(supply.assignee, 'the sawmill fetches for itself').toBe(sawyer.id);
+    expect(supply.state, 'and it was never offered to anyone else').toBe('assigned');
+    expect(loiterer.jobId).toBeNull();
+  });
+
+  it('fetches a load rather than one at a time', () => {
+    const { world, hut, mill } = withMill();
+    hut.stock.log = 4; // A morning's felling already in the store.
+    until(world, w => w.jobs.some(job => job.kind === 'supply'), 6000);
+    const supply = world.jobs.find(job => job.kind === 'supply')!;
+    expect(supply.kind === 'supply' && supply.amount).toBe(3); // The mill keeps three on hand.
+
+    until(world, w => findBuilding(w, mill.id)!.stock.log > 0, 6000);
+    expect(mill.stock.log).toBe(3);
+    expect(hut.stock.log).toBe(1);
+  });
+
+  it('will not interrupt a worker who is already at the bench', () => {
+    const { world, hut, mill } = withMill();
+    hut.stock.log = 4;
+    mill.stock.log = 1;
+    until(world, w => w.villagers.some(villager => villager.activity.kind === 'work' && villager.workplace === mill.id), 6000);
+    const events = run(world, 30);
+    expect(kinds(events), 'nothing sent for while the saw is running').not.toContain('supply-asked');
+    expect(world.villagers.find(villager => villager.workplace === mill.id)!.activity.kind).toBe('work');
+  });
+});

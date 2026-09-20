@@ -57,7 +57,7 @@ function validVillager(villager: Villager): boolean {
 
 function validJob(job: Job): boolean {
   if (job?.kind === 'supply') {
-    return finite(job.id, job.createdTick, job.priority, job.from, job.to) && WARES.includes(job.ware)
+    return finite(job.id, job.createdTick, job.priority, job.from, job.to) && WARES.includes(job.ware) && counter(job.amount) && job.amount > 0
       && ['queued', 'assigned', 'done', 'cancelled'].includes(job.state)
       && (job.assignee === null || finite(job.assignee))
       && (job.finishedTick === null || finite(job.finishedTick));
