@@ -16,7 +16,7 @@ Press `Ctrl-C` in that terminal to stop the server. To use another port, run `PO
 bin/check
 ```
 
-That runs the simulation tests, typechecks the project, creates `dist/` for static hosting, and loads the built pages in a headless Chromium with every third-party request blocked. The browser pass needs `npx playwright install chromium` once; a sandbox that already ships a browser can point `CHROMIUM_PATH` at it instead. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts load from the document, so a blocked or unreachable font host costs typography and nothing else.
+That runs the simulation tests, typechecks the project, creates `dist/` for static hosting, and loads the built pages in a headless Chromium with every third-party request blocked. The browser pass needs `npx playwright install chromium-headless-shell` once; a sandbox that already ships a browser can point `CHROMIUM_PATH` at it instead. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts load from the document, so a blocked or unreachable font host costs typography and nothing else.
 
 ## Controls
 
@@ -34,7 +34,7 @@ The single villager and island state save to localStorage every five seconds, on
 
 ## Play and previews
 
-[Play the island](https://kellan.github.io/little-island/). Pushes to main build, test, and deploy to GitHub Pages. Same-repository pull requests build a playable preview at /little-island/pr-preview/pr-N/; the Actions run summary has the link. Closing a PR removes its preview. Fork PRs receive read-only build/test CI. Actions are pinned to commit SHAs and use only the repository's short-lived GITHUB_TOKEN.
+[Play the island](https://kellan.github.io/little-island/). Pushes to main build, test, and deploy to GitHub Pages. Same-repository pull requests build a playable preview at /little-island/pr-preview/pr-N/; the Actions run summary has the link. The preview only builds, because the check workflow already tests the same commit. Closing a PR removes its preview. Fork PRs receive read-only build/test CI. Actions are pinned to commit SHAs and use only the repository's short-lived GITHUB_TOKEN.
 
 ## What the first iteration taught us
 
