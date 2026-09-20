@@ -31,10 +31,18 @@ export const MAX_JOBS_PER_VILLAGER = 12;
  * come home as they are made; set them equal and the forest fills with loose wares
  * while the axe keeps swinging, which is a different and more Settlers-ish game.
  */
-export const JOB_PRIORITY = { haul: 10, harvest: 0 } as const;
+export const JOB_PRIORITY = { haul: 10, fell: 0 } as const;
 
 /** Finished jobs linger this long so the host can notice them, then are pruned. */
 export const JOB_HISTORY_SECONDS = 1;
 
 export const ISLAND_SEED = 841;
 export const TREE_COUNT = 37;
+
+/** A lumberjack hut: how far it sends its worker, and how many logs it holds. */
+export const HUT_RADIUS = 8;
+export const HUT_CAPACITY = 5;
+export const DOOR_REACH = .6;
+
+/** A day is only a shift boundary for now: tools go back to the hut overnight. */
+export const DAY_SECONDS = 120;

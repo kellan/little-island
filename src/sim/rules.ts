@@ -14,14 +14,15 @@
 import { nextRandom } from './rng.ts';
 import { HOME, distance, onLand } from './terrain.ts';
 import {
-  CARRY_SPEED, CHOP_SECONDS, JOB_HISTORY_SECONDS, JOB_PRIORITY, MAX_JOBS_PER_VILLAGER,
-  PILE_REACH, REST_SECONDS, ROAM_RADIUS, ROAM_SPEED, STOCKPILE_REACH, SWINGS_PER_SECOND,
-  TREE_REACH, WALK_SPEED,
+  CARRY_SPEED, CHOP_SECONDS, DAY_SECONDS, DOOR_REACH, JOB_HISTORY_SECONDS, JOB_PRIORITY,
+  MAX_JOBS_PER_VILLAGER, PILE_REACH, REST_SECONDS, ROAM_RADIUS, ROAM_SPEED, STOCKPILE_REACH,
+  SWINGS_PER_SECOND, TREE_REACH, WALK_SPEED,
 } from './tuning.ts';
-import { accepts, type EmittedEvent, type Job, type Tree, type TravelPurpose, type Villager, type WarePile, type World } from './types.ts';
+import { accepts, type Building, type EmittedEvent, type Job, type Tree, type TravelPurpose, type Villager, type WarePile, type World } from './types.ts';
 import {
-  activeJobs, dropWare, findJob, findPile, findTree, findVillager, idleVillagers,
-  jobForTree, loosePiles, openJobs, secondsToTicks,
+  activeJobs, dropWare, findBuilding, findJob, findPile, findTree, findVillager, hasRoom,
+  heldIn, idleVillagers, jobForTree, loosePiles, openJobs, secondsToTicks, standingTrees,
+  workplaceOf,
 } from './world.ts';
 
 /** Phases run in this order, every tick, always. */
@@ -80,15 +81,17 @@ export function defineRule<T>(rule: Rule<T>): CompiledRule {
 const ARRIVED = 1e-3;
 const world1 = (world: World) => [world] as const;
 const travellers = (world: World) => world.villagers.filter(v => v.activity.kind === 'travel');
-const harvesters = (world: World) => world.villagers.filter(v => v.activity.kind === 'harvest');
+const choppers = (world: World) => world.villagers.filter(v => v.activity.kind === 'chop');
 const liveJobs = (world: World) => world.jobs.filter(job => job.state === 'queued' || job.state === 'assigned');
-const targetOf = (job: Job) => job.kind === 'harvest' ? job.treeId : job.pileId;
+/** Free hands. Somebody who works at a building needs their tool before anything else. */
+const available = (world: World) => idleVillagers(world).filter(v => v.workplace === null || v.tool !== null);
+const targetOf = (job: Job) => job.kind === 'fell' ? job.treeId : job.pileId;
 
 /** Hand a job back: the villager forgets it and its target loses the claim. */
 function release(world: World, job: Job | undefined, villager: Villager | undefined): void {
   if (job) {
     const claimant = villager?.id ?? null;
-    const target = job.kind === 'harvest' ? findTree(world, job.treeId) : findPile(world, job.pileId);
+    const target = job.kind === 'fell' ? findTree(world, job.treeId) : findPile(world, job.pileId);
     if (target && target.reservedBy === claimant) target.reservedBy = null;
     if (job.state !== 'done') { job.state = 'cancelled'; job.assignee = null; job.finishedTick = world.tick; }
   }
@@ -122,15 +125,15 @@ const acceptCommands = defineRule<World>({
     const inbox = world.inbox;
     world.inbox = [];
     for (const command of inbox) {
-      if (command.kind === 'order-harvest') {
+      if (command.kind === 'order-fell') {
         const tree = findTree(world, command.treeId);
         if (!tree) { ctx.emit({ kind: 'order-rejected', treeId: command.treeId, reason: 'unknown-tree' }); continue; }
         if (tree.state === 'felled') { ctx.emit({ kind: 'order-rejected', treeId: tree.id, reason: 'already-felled' }); continue; }
         if (jobForTree(world, tree.id)) { ctx.emit({ kind: 'order-rejected', treeId: tree.id, reason: 'already-ordered' }); continue; }
         if (activeJobs(world).length >= MAX_JOBS_PER_VILLAGER * world.villagers.length) { ctx.emit({ kind: 'order-rejected', treeId: tree.id, reason: 'queue-full' }); continue; }
         const job: Job = {
-          id: world.nextJobId++, kind: 'harvest', treeId: tree.id, state: 'queued',
-          assignee: null, priority: JOB_PRIORITY.harvest, createdTick: world.tick, finishedTick: null,
+          id: world.nextJobId++, kind: 'fell', treeId: tree.id, state: 'queued',
+          assignee: null, priority: JOB_PRIORITY.fell, createdTick: world.tick, finishedTick: null,
         };
         world.jobs.push(job);
         world.stats.ordersQueued++;
@@ -138,7 +141,7 @@ const acceptCommands = defineRule<World>({
       } else {
         // Only the player's own orders can be called off; fetching is the settlement's business.
         const doomed = command.kind === 'cancel-all'
-          ? world.jobs.filter(job => job.kind === 'harvest' && job.state === 'queued')
+          ? world.jobs.filter(job => job.kind === 'fell' && job.state === 'queued')
           : [jobForTree(world, command.treeId)].filter((job): job is Job => !!job);
         for (const job of doomed) {
           const worker = findVillager(world, job.assignee);
@@ -192,19 +195,19 @@ const assignJobs = defineRule<Job>({
   phase: 'plan',
   about: 'Hands the most pressing queued job to the nearest free villager whose role takes that work.',
   subjects: (world) => openJobs(world).sort((a, b) => b.priority - a.priority || a.id - b.id),
-  when: (world, job) => idleVillagers(world).some(villager => accepts(villager.role, job.kind)),
+  when: (world, job) => available(world).some(villager => accepts(villager.role, job.kind)),
   then: (world, job, ctx) => {
-    const target = job.kind === 'harvest' ? findTree(world, job.treeId) : findPile(world, job.pileId);
+    const target = job.kind === 'fell' ? findTree(world, job.treeId) : findPile(world, job.pileId);
     if (!target) return;
-    const worker = idleVillagers(world)
+    const worker = available(world)
       .filter(villager => accepts(villager.role, job.kind))
       .sort((a, b) => distance(a, target) - distance(b, target) || a.id - b.id)[0];
     job.state = 'assigned';
     job.assignee = worker.id;
     worker.jobId = job.id;
     target.reservedBy = worker.id;
-    if (job.kind === 'harvest') travelTo(worker, target, TREE_REACH, WALK_SPEED, 'harvest');
-    else travelTo(worker, target, PILE_REACH, WALK_SPEED, 'collect');
+    if (job.kind === 'fell') travelTo(worker, target, TREE_REACH, WALK_SPEED, 'fell');
+    else travelTo(worker, target, PILE_REACH, WALK_SPEED, 'fetch');
     ctx.emit({ kind: 'job-assigned', jobId: job.id, job: job.kind, targetId: targetOf(job), villagerId: worker.id });
   },
 });
@@ -234,10 +237,10 @@ const chop = defineRule<Villager>({
   id: 'chop',
   phase: 'act',
   about: 'Advances a chop and emits one swing event per axe stroke, so sound and dust follow the work.',
-  subjects: harvesters,
-  when: (_world, villager) => villager.activity.kind === 'harvest',
+  subjects: choppers,
+  when: (_world, villager) => villager.activity.kind === 'chop',
   then: (_world, villager, ctx) => {
-    if (villager.activity.kind !== 'harvest') return;
+    if (villager.activity.kind !== 'chop') return;
     const before = Math.floor(villager.activity.progress * SWINGS_PER_SECOND);
     villager.activity.progress += ctx.dt;
     if (Math.floor(villager.activity.progress * SWINGS_PER_SECOND) !== before) {
@@ -253,16 +256,16 @@ const arriveAtTree = defineRule<Villager>({
   phase: 'resolve',
   about: 'Turns a walk into work once the villager is within arm’s reach of their tree.',
   subjects: travellers,
-  when: (_world, villager) => arrivedTravelling(villager, 'harvest'),
+  when: (_world, villager) => arrivedTravelling(villager, 'fell'),
   then: (world, villager, ctx) => {
     const job = findJob(world, villager.jobId);
-    const tree = job?.kind === 'harvest' ? findTree(world, job.treeId) : undefined;
+    const tree = job?.kind === 'fell' ? findTree(world, job.treeId) : undefined;
     if (!tree || tree.state === 'felled') {
       release(world, job, villager);
-      ctx.emit({ kind: 'job-abandoned', jobId: job?.id ?? -1, job: 'harvest', targetId: job ? targetOf(job) : -1, villagerId: villager.id });
+      ctx.emit({ kind: 'job-abandoned', jobId: job?.id ?? -1, job: 'fell', targetId: job ? targetOf(job) : -1, villagerId: villager.id });
       return;
     }
-    villager.activity = { kind: 'harvest', treeId: tree.id, progress: 0, duration: chopDuration(tree) };
+    villager.activity = { kind: 'chop', treeId: tree.id, progress: 0, duration: chopDuration(tree) };
   },
 });
 
@@ -271,16 +274,16 @@ const fellTreeAndCarry = defineRule<Villager>({
   id: 'fell-tree',
   phase: 'resolve',
   about: 'Drops the tree when the chop completes and puts a log in the villager’s arms.',
-  subjects: harvesters,
-  when: (_world, villager) => villager.activity.kind === 'harvest' && villager.activity.progress >= villager.activity.duration,
+  subjects: choppers,
+  when: (_world, villager) => villager.activity.kind === 'chop' && villager.activity.progress >= villager.activity.duration,
   then: (world, villager, ctx) => {
-    if (villager.activity.kind !== 'harvest') return;
+    if (villager.activity.kind !== 'chop') return;
     const tree = findTree(world, villager.activity.treeId);
     if (!tree) { release(world, findJob(world, villager.jobId), villager); return; }
     tree.state = 'felled';
     tree.reservedBy = null;
     world.stats.treesFelled++;
-    villager.carrying = { ware: 'timber', amount: 1 };
+    villager.carrying = { ware: 'log', amount: 1 };
     travelTo(villager, world.stockpile, STOCKPILE_REACH, CARRY_SPEED, 'deliver');
     ctx.emit({ kind: 'tree-felled', treeId: tree.id, villagerId: villager.id });
   },
@@ -291,16 +294,16 @@ const fellTreeToGround = defineRule<Villager>({
   id: 'fell-tree-to-ground',
   phase: 'resolve',
   about: 'Drops the tree when the chop completes and leaves a log lying where it fell.',
-  subjects: harvesters,
-  when: (_world, villager) => villager.activity.kind === 'harvest' && villager.activity.progress >= villager.activity.duration,
+  subjects: choppers,
+  when: (_world, villager) => villager.activity.kind === 'chop' && villager.activity.progress >= villager.activity.duration,
   then: (world, villager, ctx) => {
-    if (villager.activity.kind !== 'harvest') return;
+    if (villager.activity.kind !== 'chop') return;
     const tree = findTree(world, villager.activity.treeId);
     if (!tree) { release(world, findJob(world, villager.jobId), villager); return; }
     tree.state = 'felled';
     tree.reservedBy = null;
     world.stats.treesFelled++;
-    const pile = dropWare(world, 'timber', tree);
+    const pile = dropWare(world, 'log', tree);
     finish(world, findJob(world, villager.jobId), villager);
     ctx.emit({ kind: 'tree-felled', treeId: tree.id, villagerId: villager.id });
     ctx.emit({ kind: 'ware-dropped', ware: pile.ware, pileId: pile.id, x: pile.x, z: pile.z });
@@ -312,7 +315,7 @@ const collectWare = defineRule<Villager>({
   phase: 'resolve',
   about: 'Picks a ware up off the ground and sets off for the stockpile with it.',
   subjects: travellers,
-  when: (_world, villager) => arrivedTravelling(villager, 'collect'),
+  when: (_world, villager) => arrivedTravelling(villager, 'fetch'),
   then: (world, villager, ctx) => {
     const job = findJob(world, villager.jobId);
     const pile = job?.kind === 'haul' ? findPile(world, job.pileId) : undefined;
@@ -323,7 +326,10 @@ const collectWare = defineRule<Villager>({
     }
     world.piles = world.piles.filter(other => other.id !== pile.id);
     villager.carrying = { ware: pile.ware, amount: pile.amount };
-    travelTo(villager, world.stockpile, STOCKPILE_REACH, CARRY_SPEED, 'deliver');
+    // Wares go where the carrier works, or to the clearing if they work nowhere.
+    const home = workplaceOf(world, villager);
+    if (home) travelTo(villager, home, DOOR_REACH, CARRY_SPEED, 'deliver');
+    else travelTo(villager, world.stockpile, STOCKPILE_REACH, CARRY_SPEED, 'deliver');
     ctx.emit({ kind: 'ware-collected', ware: pile.ware, amount: pile.amount, pileId: pile.id, villagerId: villager.id });
   },
 });
@@ -338,7 +344,7 @@ const storeDelivery = defineRule<Villager>({
     const load = villager.carrying;
     if (load) {
       world.stockpile.stock[load.ware] += load.amount;
-      if (load.ware === 'timber') world.stats.logsDelivered += load.amount;
+      if (load.ware === 'log') world.stats.logsDelivered += load.amount;
       villager.carrying = null;
       ctx.emit({ kind: 'ware-delivered', ware: load.ware, amount: load.amount, total: world.stockpile.stock[load.ware], villagerId: villager.id });
     }
@@ -389,6 +395,100 @@ const forgetFinishedJobs = defineRule<World>({
   },
 });
 
+/* --------------------------------------------- working at a building */
+
+const clockOn = defineRule<Villager>({
+  id: 'clock-on',
+  phase: 'plan',
+  about: 'Sends a villager with a workplace and no tool to their building to start the day.',
+  subjects: (world) => world.villagers.filter(v => v.workplace !== null && v.tool === null && !v.carrying),
+  when: (world, villager) => villager.activity.kind === 'idle' && !!workplaceOf(world, villager),
+  then: (world, villager) => {
+    const hut = workplaceOf(world, villager)!;
+    travelTo(villager, hut, DOOR_REACH, WALK_SPEED, 'clock-on');
+  },
+});
+
+const takeTool = defineRule<Villager>({
+  id: 'take-tool',
+  phase: 'resolve',
+  about: 'Hands the villager the axe kept at their building; the working day starts here.',
+  subjects: travellers,
+  when: (_world, villager) => arrivedTravelling(villager, 'clock-on'),
+  then: (world, villager, ctx) => {
+    const hut = workplaceOf(world, villager);
+    villager.activity = { kind: 'idle' };
+    if (!hut) return;
+    villager.tool = 'axe';
+    ctx.emit({ kind: 'shift-started', villagerId: villager.id, buildingId: hut.id, tool: 'axe' });
+  },
+});
+
+const hutPicksATree = defineRule<Building>({
+  id: 'hut-picks-a-tree',
+  phase: 'plan',
+  about: 'A lumberjack hut with room in its store sends its worker to the nearest tree in range.',
+  subjects: (world) => world.buildings.filter(building => building.kind === 'lumberjack-hut' && building.workerId !== null),
+  when: (world, hut) => {
+    const worker = findVillager(world, hut.workerId);
+    return !!worker && worker.tool === 'axe' && worker.jobId === null && !worker.carrying
+      && worker.activity.kind !== 'chop' && hasRoom(hut);
+  },
+  then: (world, hut, ctx) => {
+    const worker = findVillager(world, hut.workerId)!;
+    const tree = standingTrees(world)
+      .filter(candidate => candidate.reservedBy === null && distance(candidate, hut) <= hut.radius)
+      .sort((a, b) => distance(a, worker) - distance(b, worker) || a.id - b.id)[0];
+    if (!tree) return;
+    const job: Job = {
+      id: world.nextJobId++, kind: 'fell', treeId: tree.id, state: 'assigned',
+      assignee: worker.id, priority: JOB_PRIORITY.fell, createdTick: world.tick, finishedTick: null,
+    };
+    world.jobs.push(job);
+    worker.jobId = job.id;
+    tree.reservedBy = worker.id;
+    travelTo(worker, tree, TREE_REACH, WALK_SPEED, 'fell');
+    ctx.emit({ kind: 'job-assigned', jobId: job.id, job: 'fell', targetId: tree.id, villagerId: worker.id });
+  },
+});
+
+const storeInBuilding = defineRule<Villager>({
+  id: 'store-in-building',
+  phase: 'resolve',
+  about: 'Puts a carried ware into the worker\u2019s own building, up to its capacity.',
+  subjects: travellers,
+  when: (world, villager) => arrivedTravelling(villager, 'deliver') && !!workplaceOf(world, villager),
+  then: (world, villager, ctx) => {
+    const hut = workplaceOf(world, villager)!;
+    const load = villager.carrying;
+    if (load && hasRoom(hut)) {
+      hut.stock[load.ware] += load.amount;
+      if (load.ware === 'log') world.stats.logsDelivered += load.amount;
+      villager.carrying = null;
+      ctx.emit({ kind: 'ware-stored', ware: load.ware, amount: load.amount, buildingId: hut.id, stored: heldIn(hut), capacity: hut.capacity, villagerId: villager.id });
+      if (!hasRoom(hut)) ctx.emit({ kind: 'store-full', buildingId: hut.id });
+    }
+    finish(world, findJob(world, villager.jobId), villager);
+    villager.restUntil = world.tick + secondsToTicks(REST_SECONDS);
+  },
+});
+
+const newDay = defineRule<World>({
+  id: 'new-day',
+  phase: 'upkeep',
+  about: 'Turns the day over; tools stay at the building, so everyone clocks on again.',
+  subjects: world1,
+  when: (world) => world.tick > 0 && world.tick % secondsToTicks(DAY_SECONDS) === 0,
+  then: (world, _subject, ctx) => {
+    world.day++;
+    // Anyone mid-job keeps their axe until they finish; the rest hand theirs in.
+    for (const villager of world.villagers) {
+      if (villager.workplace !== null && villager.activity.kind === 'idle' && !villager.carrying) villager.tool = null;
+    }
+    ctx.emit({ kind: 'day-begins', day: world.day });
+  },
+});
+
 /** What the browser island runs: fell a tree, carry the log home yourself. */
 export const SETTLEMENT: Rulebook = {
   id: 'settlement',
@@ -429,7 +529,35 @@ export const HAULING: Rulebook = {
   ],
 };
 
-export const RULEBOOKS: readonly Rulebook[] = [SETTLEMENT, HAULING];
+/** A building gives out the work: clock on, fell what is in range, store what you fetch. */
+export const LUMBERJACK: Rulebook = {
+  id: 'lumberjack',
+  about: 'A hut with a worker: take the axe, fell nearby trees, haul the logs back, stop when full.',
+  rules: [
+    acceptCommands,
+    dropImpossibleJobs,
+    clockOn,
+    // Work already in hand comes first: hand out the hauling, and only then let the
+    // hut pick another tree. The other order fells the whole forest and carries none of it.
+    listLooseWares,
+    assignJobs,
+    hutPicksATree,
+    walk,
+    chop,
+    takeTool,
+    arriveAtTree,
+    fellTreeToGround,
+    collectWare,
+    storeInBuilding,
+    storeDelivery,
+    finishRoaming,
+    wanderWhenIdle,
+    newDay,
+    forgetFinishedJobs,
+  ],
+};
+
+export const RULEBOOKS: readonly Rulebook[] = [SETTLEMENT, HAULING, LUMBERJACK];
 
 /** The default rulebook, in execution order. */
 export const RULES = SETTLEMENT.rules;

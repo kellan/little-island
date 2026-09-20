@@ -26,13 +26,13 @@ function crowd(villagers: number): World {
 describe('at scale', () => {
   it('keeps a crowd of villagers working, and stays quick enough to be worth trying', () => {
     const world = crowd(120);
-    for (let i = 0; i < 240; i++) world.inbox.push({ kind: 'order-harvest', treeId: i });
+    for (let i = 0; i < 240; i++) world.inbox.push({ kind: 'order-fell', treeId: i });
     const started = performance.now();
     tickTimes(world, 1800);
     const perTick = (performance.now() - started) / 1800;
     console.log(`120 villagers, 300 trees: ${perTick.toFixed(3)} ms/tick (budget at 30 Hz is 33 ms)`);
 
-    expect(world.stockpile.stock.timber).toBe(240);
+    expect(world.stockpile.stock.log).toBe(240);
     expect(standingTrees(world)).toHaveLength(60);
     expect(world.villagers.every(villager => villager.jobId === null)).toBe(true);
     expect(perTick).toBeLessThan(33);
@@ -41,7 +41,7 @@ describe('at scale', () => {
   it('stays deterministic with many hands in the same forest', () => {
     const build = () => {
       const world = crowd(40);
-      for (let id = 0; id < 60; id++) world.inbox.push({ kind: 'order-harvest', treeId: id });
+      for (let id = 0; id < 60; id++) world.inbox.push({ kind: 'order-fell', treeId: id });
       tickTimes(world, 900);
       return world;
     };

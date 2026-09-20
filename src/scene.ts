@@ -154,7 +154,7 @@ export class IslandScene {
 
     for (const villager of world.villagers) {
       const rig = this.rigFor(villager), activity = villager.activity;
-      const moving = activity.kind === 'travel', swinging = activity.kind === 'harvest', carrying = !!villager.carrying;
+      const moving = activity.kind === 'travel', swinging = activity.kind === 'chop', carrying = !!villager.carrying;
       const at = this.placeOf(villager, alpha);
       rig.group.position.set(at.x, elevation(at.x, at.z), at.z); rig.group.rotation.y = villager.facing;
       const pace = moving ? activity.speed / tuning.WALK_SPEED : 0;
@@ -164,7 +164,7 @@ export class IslandScene {
       rig.leftArm.rotation.x = carrying ? -1.15 : moving ? -Math.sin(time * 15 * pace) * .5 : 0;
       rig.rightArm.rotation.x = swinging ? -1.2 + Math.sin(time * 9) * 1.2 : carrying ? -1.15 : moving ? Math.sin(time * 15 * pace) * .5 : 0;
       rig.axe.visible = !carrying; rig.carried.visible = carrying;
-      if (activity.kind === 'harvest') { chopping.add(activity.treeId); const tree = world.trees.find(t => t.id === activity.treeId); if (tree) chopTarget = tree; }
+      if (activity.kind === 'chop') { chopping.add(activity.treeId); const tree = world.trees.find(t => t.id === activity.treeId); if (tree) chopTarget = tree; }
     }
 
     for (const tree of world.trees) {
@@ -175,7 +175,7 @@ export class IslandScene {
     }
 
     // A ring on every tree with an order against it, plus one under the cursor.
-    const ordered = world.jobs.flatMap(job => job.kind === 'harvest' && (job.state === 'queued' || job.state === 'assigned') ? [job.treeId] : []);
+    const ordered = world.jobs.flatMap(job => job.kind === 'fell' && (job.state === 'queued' || job.state === 'assigned') ? [job.treeId] : []);
     this.orderRings.forEach((ring, index) => {
       const tree = index < ordered.length ? world.trees.find(t => t.id === ordered[index]) : undefined;
       ring.visible = !!tree && tree.state === 'standing';
@@ -196,7 +196,7 @@ export class IslandScene {
       this.dust.geometry.attributes.position.needsUpdate = true;
     }
 
-    const logs = world.stockpile.stock.timber;
+    const logs = world.stockpile.stock.log;
     if (this.lastLogs !== logs) {
       this.lastLogs = logs; this.stockpile.clear();
       for (let i = 0; i < Math.min(logs, 40); i++) {
@@ -211,8 +211,8 @@ export class IslandScene {
 
   /** Screen position and progress of the villager currently swinging an axe. */
   workBadge(alpha = 1): WorkBadge | null {
-    const villager = this.world.villagers.find(v => v.activity.kind === 'harvest');
-    if (!villager || villager.activity.kind !== 'harvest') return null;
+    const villager = this.world.villagers.find(v => v.activity.kind === 'chop');
+    if (!villager || villager.activity.kind !== 'chop') return null;
     const at = this.placeOf(villager, alpha);
     const point = new THREE.Vector3(at.x, elevation(at.x, at.z) + 1.8, at.z).project(this.camera);
     return { x: (point.x * .5 + .5) * innerWidth, y: (-.5 * point.y + .5) * innerHeight, progress: Math.min(1, villager.activity.progress / villager.activity.duration) };

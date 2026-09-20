@@ -31,17 +31,17 @@ const sim=createSimulation(restored??createWorld());
 let paused=false,speed=1,sound=false,audio:AudioContext|undefined;
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
-<canvas id="world" aria-label="Interactive island. Drag to orbit, right drag to pan, scroll to zoom. Click a tree to harvest it."></canvas>
+<canvas id="world" aria-label="Interactive island. Drag to orbit, right drag to pan, scroll to zoom. Click a tree to fell it."></canvas>
 <div class="vignette"></div>
-<header class="topbar"><a class="brand" href="#" aria-label="Little Island home"><span class="brand-mark">${svg('leaf')}</span><span>LITTLE ISLAND<small>ONE ISLAND · ONE PAIR OF HANDS</small></span></a><div class="top-right"><div class="day"><span class="sun">✳</span><span>Day 01<small>A little room to grow</small></span></div><span class="divider"></span><div class="resource">${svg('wood')}<strong id="log-count">0</strong><span>Timber</span></div><button class="icon-button" id="help" title="How to play" aria-label="How to play">${svg('help')}</button></div></header>
+<header class="topbar"><a class="brand" href="#" aria-label="Little Island home"><span class="brand-mark">${svg('leaf')}</span><span>LITTLE ISLAND<small>ONE ISLAND · ONE PAIR OF HANDS</small></span></a><div class="top-right"><div class="day"><span class="sun">✳</span><span>Day 01<small>A little room to grow</small></span></div><span class="divider"></span><div class="resource">${svg('wood')}<strong id="log-count">0</strong><span>Logs</span></div><button class="icon-button" id="help" title="How to play" aria-label="How to play">${svg('help')}</button></div></header>
 <aside class="chapter"><div class="objective" id="objective"><span class="objective-icon">${svg('tree')}</span><div><strong>A log to call your own</strong><span id="objective-text">Click a tree. Robin will take it from here.</span></div></div></aside>
 <div id="tooltip" class="tree-tooltip" hidden>${svg('tree')}<span id="tooltip-text">Select to gather</span></div>
 <div id="work-progress" class="work-progress" hidden><span>CHOPPING</span><div><i></i></div></div>
 <div class="toast" id="toast" role="status"></div>
-<footer class="bottom"><div class="villager-card"><div class="portrait">${svg('leaf')}</div><div><div class="villager-name">Robin <span>YOUR VILLAGER</span></div><div class="villager-status"><i id="status-dot"></i><span id="status">Taking it all in</span></div></div><span class="card-divider"></span><button class="focus-button" id="focus" title="Find Robin" aria-label="Find Robin">${svg('home')}</button></div><div class="hint" id="hint"><span class="mouse-icon"></span><span>Click a tree to gather timber</span></div><div class="controls"><button class="icon-button" id="pause" title="Pause simulation" aria-label="Pause simulation">${svg('pause')}</button><button class="speed" id="speed" title="Change simulation speed">1×</button><span class="divider"></span><button class="icon-button" id="sound" title="Enable gentle sound effects" aria-label="Enable sound effects">${svg('muted')}</button><button class="icon-button" id="reset" title="Start a fresh island" aria-label="Start a fresh island">${svg('reset')}</button></div></footer>
+<footer class="bottom"><div class="villager-card"><div class="portrait">${svg('leaf')}</div><div><div class="villager-name">Robin <span>YOUR VILLAGER</span></div><div class="villager-status"><i id="status-dot"></i><span id="status">Taking it all in</span></div></div><span class="card-divider"></span><button class="focus-button" id="focus" title="Find Robin" aria-label="Find Robin">${svg('home')}</button></div><div class="hint" id="hint"><span class="mouse-icon"></span><span>Click a tree to gather logs</span></div><div class="controls"><button class="icon-button" id="pause" title="Pause simulation" aria-label="Pause simulation">${svg('pause')}</button><button class="speed" id="speed" title="Change simulation speed">1×</button><span class="divider"></span><button class="icon-button" id="sound" title="Enable gentle sound effects" aria-label="Enable sound effects">${svg('muted')}</button><button class="icon-button" id="reset" title="Start a fresh island" aria-label="Start a fresh island">${svg('reset')}</button></div></footer>
 <div class="camera-hint"><span>DRAG TO ORBIT</span><i>·</i><span>SCROLL TO ZOOM</span><i>·</i><span>RIGHT DRAG TO PAN</span></div>
 <dialog id="help-dialog"><button class="dialog-close icon-button" aria-label="Close help">${svg('close')}</button><span class="dialog-leaf">${svg('leaf')}</span><div class="eyebrow">WELCOME TO LITTLE ISLAND</div><h2>Make yourself at home.</h2><p>This is a small, peaceful place to begin. Select a tree and Robin will walk over, chop it down, and carry a log back to the clearing. Line up a few and they become a list of work.</p><dl><div><dt>Look around</dt><dd>Drag to orbit · scroll to zoom</dd></div><div><dt>Move your view</dt><dd>Right drag or two-finger drag</dd></div><div><dt>Change your mind</dt><dd>Click a marked tree to call it off</dd></div><div><dt>Take your time</dt><dd>Space to pause · 1× to change pace</dd></div></dl><p class="save-note">Your island saves automatically in this browser.</p><button id="start" class="primary">Let’s get growing ${svg('arrow')}</button></dialog>
-<dialog id="reset-dialog"><div class="eyebrow">A FRESH START</div><h2>A new little beginning?</h2><p>This will replace your saved island and timber with a fresh island.</p><div class="dialog-actions"><button class="secondary" id="cancel-reset">Keep my island</button><button class="primary" id="confirm-reset">Start fresh</button></div></dialog>`;
+<dialog id="reset-dialog"><div class="eyebrow">A FRESH START</div><h2>A new little beginning?</h2><p>This will replace your saved island and its logs with a fresh island.</p><div class="dialog-actions"><button class="secondary" id="cancel-reset">Keep my island</button><button class="primary" id="confirm-reset">Start fresh</button></div></dialog>`;
 
 const $=<T extends HTMLElement>(q:string)=>document.querySelector<T>(q)!;
 const view=new IslandScene($<HTMLCanvasElement>('#world'),sim.world);
@@ -64,7 +64,7 @@ canvas.addEventListener('pointerleave',()=>{$('#tooltip').hidden=true;view.hover
 canvas.addEventListener('pointerup',event=>{
   if(event.button!==0||Math.hypot(event.clientX-down.x,event.clientY-down.y)>6)return;
   const treeId=view.pick(event.clientX,event.clientY);if(treeId===null)return;
-  enqueue(sim,jobForTree(sim.world,treeId)?{kind:'cancel-harvest',treeId}:{kind:'order-harvest',treeId});
+  enqueue(sim,jobForTree(sim.world,treeId)?{kind:'cancel-fell',treeId}:{kind:'order-fell',treeId});
 });
 
 function setPause(){paused=!paused;$('#pause').innerHTML=svg(paused?'play':'pause');$('#pause').setAttribute('aria-label',paused?'Resume simulation':'Pause simulation');$('#pause').title=paused?'Resume simulation':'Pause simulation';$('#pause').classList.toggle('active',paused);}
@@ -88,7 +88,7 @@ function react(events:SimEvent[]){
     else if(event.kind==='order-rejected')toast(REJECTIONS[event.reason]);
     else if(event.kind==='chop-swing')note(150,.05);
     else if(event.kind==='tree-felled')note(196,.22);
-    else if(event.kind==='ware-delivered'){note(659,.25);toast(event.total===1?'Your first log. Every little world starts somewhere.':`+1 timber · ${event.total} in the pile`);save();}
+    else if(event.kind==='ware-delivered'){note(659,.25);toast(event.total===1?'Your first log. Every little world starts somewhere.':`+1 log · ${event.total} in the pile`);save();}
   }
 }
 
@@ -96,7 +96,7 @@ function describe():string{
   const villager=sim.world.villagers[0];
   if(paused)return 'Enjoying a quiet moment';
   if(villager.carrying)return 'Bringing a log home';
-  if(villager.activity.kind==='harvest')return 'Chop, chop. Making progress.';
+  if(villager.activity.kind==='chop')return 'Chop, chop. Making progress.';
   if(villager.activity.kind==='travel')return villager.activity.purpose==='roam'?'Having a wander':'On the way to a tree';
   return 'Taking it all in';
 }
@@ -108,7 +108,7 @@ function frame(now:number){
   react(paused?(sim.world.inbox.length?tick(sim.world):[]):advance(sim,dt*speed));
   view.update(now/1000,paused?1:alpha(sim));
 
-  const world=sim.world,logs=world.stockpile.stock.timber,waiting=openJobs(world).length,busy=world.villagers[0].jobId!==null;
+  const world=sim.world,logs=world.stockpile.stock.log,waiting=openJobs(world).length,busy=world.villagers[0].jobId!==null;
   $('#log-count').textContent=String(logs);
   $('#status').textContent=describe();
   $('#status-dot').classList.toggle('working',busy);

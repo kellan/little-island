@@ -4,9 +4,9 @@
  * malformed world must never reach the rules. Invalid input returns null, and the
  * caller starts a fresh island rather than crashing on tick one.
  */
-import { ROLES, WARES, type Activity, type Command, type Job, type Tree, type Villager, type WarePile, type World } from './types.ts';
+import { ROLES, WARES, type Activity, type Building, type Command, type Job, type Tree, type Villager, type WarePile, type World } from './types.ts';
 
-const FORMAT_VERSION = 3;
+const FORMAT_VERSION = 4;
 const MAX_TREES = 400;
 const MAX_VILLAGERS = 64;
 const MAX_JOBS = 256;
@@ -25,9 +25,9 @@ function validActivity(activity: Activity | undefined): boolean {
   if (activity.kind === 'idle') return true;
   if (activity.kind === 'travel') {
     return !!activity.to && finite(activity.to.x, activity.to.z, activity.stopWithin, activity.speed)
-      && ['harvest', 'collect', 'deliver', 'roam'].includes(activity.purpose);
+      && ['clock-on', 'fell', 'fetch', 'deliver', 'roam'].includes(activity.purpose);
   }
-  if (activity.kind === 'harvest') return finite(activity.treeId, activity.progress, activity.duration) && activity.duration > 0;
+  if (activity.kind === 'chop') return finite(activity.treeId, activity.progress, activity.duration) && activity.duration > 0;
   return false;
 }
 
@@ -42,6 +42,8 @@ function validVillager(villager: Villager): boolean {
   return finite(villager.id, villager.x, villager.z, villager.px, villager.pz, villager.facing, villager.restUntil)
     && typeof villager.name === 'string' && villager.name.length <= 40
     && ROLES.includes(villager.role)
+    && (villager.workplace === null || finite(villager.workplace))
+    && (villager.tool === null || villager.tool === 'axe')
     && validActivity(villager.activity)
     && (villager.jobId === null || finite(villager.jobId))
     && (villager.carrying === null
@@ -49,11 +51,19 @@ function validVillager(villager: Villager): boolean {
 }
 
 function validJob(job: Job): boolean {
-  const target = job?.kind === 'harvest' ? job.treeId : job?.kind === 'haul' ? job.pileId : undefined;
+  const target = job?.kind === 'fell' ? job.treeId : job?.kind === 'haul' ? job.pileId : undefined;
   return finite(job.id, job.createdTick, job.priority, target)
     && ['queued', 'assigned', 'done', 'cancelled'].includes(job.state)
     && (job.assignee === null || finite(job.assignee))
     && (job.finishedTick === null || finite(job.finishedTick));
+}
+
+function validBuilding(building: Building): boolean {
+  return finite(building.id, building.x, building.z, building.radius)
+    && building.kind === 'lumberjack-hut'
+    && counter(building.capacity) && building.capacity > 0
+    && (building.workerId === null || finite(building.workerId))
+    && !!building.stock && WARES.every(ware => counter(building.stock[ware]));
 }
 
 function validPile(pile: WarePile): boolean {
@@ -65,7 +75,7 @@ function validPile(pile: WarePile): boolean {
 
 function validCommand(command: Command): boolean {
   if (command?.kind === 'cancel-all') return true;
-  return (command?.kind === 'order-harvest' || command?.kind === 'cancel-harvest') && finite(command.treeId);
+  return (command?.kind === 'order-fell' || command?.kind === 'cancel-fell') && finite(command.treeId);
 }
 
 /** Parse a saved world, or return null if it is not one we can safely run. */
@@ -82,7 +92,8 @@ export function deserialize(raw: string): World | null {
   if (!Array.isArray(world.villagers) || world.villagers.length === 0 || world.villagers.length > MAX_VILLAGERS || !world.villagers.every(validVillager)) return null;
   if (!Array.isArray(world.jobs) || world.jobs.length > MAX_JOBS || !world.jobs.every(validJob)) return null;
   if (!Array.isArray(world.piles) || world.piles.length > MAX_PILES || !world.piles.every(validPile)) return null;
-  if (!counter(world.nextPileId)) return null;
+  if (!counter(world.nextPileId) || !counter(world.nextBuildingId) || !counter(world.day) || world.day < 1) return null;
+  if (!Array.isArray(world.buildings) || world.buildings.length > 64 || !world.buildings.every(validBuilding)) return null;
   if (!Array.isArray(world.inbox) || world.inbox.length > MAX_INBOX || !world.inbox.every(validCommand)) return null;
   if (!world.stockpile || !finite(world.stockpile.x, world.stockpile.z)) return null;
   if (!world.stockpile.stock || !WARES.every(ware => counter(world.stockpile.stock[ware]))) return null;
@@ -97,9 +108,16 @@ export function deserialize(raw: string): World | null {
   if (jobIds.size !== world.jobs.length || pileIds.size !== world.piles.length) return null;
   if (world.trees.some(tree => tree.reservedBy !== null && !villagerIds.has(tree.reservedBy))) return null;
   if (world.piles.some(pile => pile.reservedBy !== null && !villagerIds.has(pile.reservedBy))) return null;
-  if (world.jobs.some(job => !(job.kind === 'harvest' ? treeIds.has(job.treeId) : pileIds.has(job.pileId)))) return null;
+  const buildingIds = new Set(world.buildings.map(building => building.id));
+  if (buildingIds.size !== world.buildings.length) return null;
+  if (world.buildings.some(building => building.workerId !== null && !villagerIds.has(building.workerId))) return null;
+  if (world.villagers.some(villager => villager.workplace !== null && !buildingIds.has(villager.workplace))) return null;
+  // Only live jobs must point at something: a finished haul names a pile that has
+  // been picked up, which is history rather than a dangling reference.
+  const liveJobs = world.jobs.filter(job => job.state === 'queued' || job.state === 'assigned');
+  if (liveJobs.some(job => !(job.kind === 'fell' ? treeIds.has(job.treeId) : pileIds.has(job.pileId)))) return null;
   if (world.jobs.some(job => job.assignee !== null && !villagerIds.has(job.assignee))) return null;
   if (world.villagers.some(villager => villager.jobId !== null && !jobIds.has(villager.jobId))) return null;
-  if (world.villagers.some(v => v.activity.kind === 'harvest' && !treeIds.has(v.activity.treeId))) return null;
+  if (world.villagers.some(v => v.activity.kind === 'chop' && !treeIds.has(v.activity.treeId))) return null;
   return world;
 }

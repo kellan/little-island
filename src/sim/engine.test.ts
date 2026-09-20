@@ -46,8 +46,8 @@ describe('clock', () => {
   it('reaches the same world whether frames are smooth or ragged', () => {
     const smooth = createSimulation(createWorld(7));
     const ragged = createSimulation(createWorld(7));
-    enqueue(smooth, { kind: 'order-harvest', treeId: 3 });
-    enqueue(ragged, { kind: 'order-harvest', treeId: 3 });
+    enqueue(smooth, { kind: 'order-fell', treeId: 3 });
+    enqueue(ragged, { kind: 'order-fell', treeId: 3 });
     for (let i = 0; i < 600; i++) advance(smooth, 1 / 60);
     for (const slice of Array.from({ length: 100 }, (_, i) => (i % 5) * .02 + .02)) advance(ragged, slice);
     while (ragged.world.tick < smooth.world.tick) tick(ragged.world);
@@ -71,7 +71,7 @@ describe('determinism', () => {
       const events: SimEvent[] = [];
       for (const [at, treeId] of [[0, 2], [40, 5], [900, 8]] as const) {
         while (world.tick < at) events.push(...tick(world));
-        world.inbox.push({ kind: 'order-harvest', treeId });
+        world.inbox.push({ kind: 'order-fell', treeId });
       }
       events.push(...tickTimes(world, 2400));
       return { hash: hashWorld(world), events };
@@ -86,19 +86,19 @@ describe('determinism', () => {
 describe('persistence', () => {
   it('restores a job in progress and continues into the identical future', () => {
     const world = createWorld();
-    world.inbox.push({ kind: 'order-harvest', treeId: 1 });
+    world.inbox.push({ kind: 'order-fell', treeId: 1 });
     tickTimes(world, 200);
     const restored = deserialize(serialize(world))!;
     expect(restored).toEqual(world);
     tickTimes(world, 900);
     tickTimes(restored, 900);
     expect(hashWorld(restored)).toBe(hashWorld(world));
-    expect(restored.stockpile.stock.timber).toBe(1);
+    expect(restored.stockpile.stock.log).toBe(1);
   });
 
   it('keeps orders queued during the save', () => {
     const world = createWorld();
-    world.inbox.push({ kind: 'order-harvest', treeId: 4 });
+    world.inbox.push({ kind: 'order-fell', treeId: 4 });
     const restored = deserialize(serialize(world))!;
     expect(restored.inbox).toHaveLength(1);
     expect(kinds(tickTimes(restored, 1))).toEqual(['order-queued', 'job-assigned']);
@@ -110,16 +110,16 @@ describe('persistence', () => {
       JSON.stringify({ ...createWorld(), version: 1 }),
       JSON.stringify({ ...createWorld(), tick: -4 }),
       JSON.stringify({ ...createWorld(), villagers: [] }),
-      JSON.stringify({ ...createWorld(), stockpile: { x: 0, z: 0, stock: { timber: -2 } } }),
+      JSON.stringify({ ...createWorld(), stockpile: { x: 0, z: 0, stock: { log: -2 } } }),
     ];
     for (const raw of broken) expect(deserialize(raw)).toBeNull();
 
     const dangling = createWorld();
-    dangling.jobs.push({ id: 9, kind: 'harvest', treeId: 999, state: 'queued', assignee: null, priority: 0, createdTick: 0, finishedTick: null });
+    dangling.jobs.push({ id: 9, kind: 'fell', treeId: 999, state: 'queued', assignee: null, priority: 0, createdTick: 0, finishedTick: null });
     expect(deserialize(serialize(dangling))).toBeNull();
 
     const badActivity = createWorld();
-    badActivity.villagers[0].activity = { kind: 'harvest', treeId: 12345, progress: 0, duration: 1 };
+    badActivity.villagers[0].activity = { kind: 'chop', treeId: 12345, progress: 0, duration: 1 };
     expect(deserialize(serialize(badActivity))).toBeNull();
   });
 });

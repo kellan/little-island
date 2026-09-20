@@ -5,7 +5,7 @@ import { MAX_JOBS_PER_VILLAGER } from './tuning.ts';
 import { addVillager, createWorld, findTree, jobForTree } from './world.ts';
 import type { SimEvent, World } from './types.ts';
 
-const order = (world: World, treeId: number) => world.inbox.push({ kind: 'order-harvest', treeId });
+const order = (world: World, treeId: number) => world.inbox.push({ kind: 'order-fell', treeId });
 const kinds = (events: SimEvent[]) => events.map(event => event.kind);
 const runUntil = (world: World, done: (world: World) => boolean, limit = 3000) => {
   const events: SimEvent[] = [];
@@ -17,7 +17,7 @@ describe('the one true loop', () => {
   it('walks, chops, carries and delivers exactly one log', () => {
     const world = createWorld();
     order(world, 0);
-    const events = runUntil(world, w => w.stockpile.stock.timber > 0);
+    const events = runUntil(world, w => w.stockpile.stock.log > 0);
 
     expect(kinds(events)).toEqual(expect.arrayContaining(['order-queued', 'job-assigned', 'chop-swing', 'tree-felled', 'ware-delivered']));
     expect(kinds(events).indexOf('tree-felled')).toBeLessThan(kinds(events).indexOf('ware-delivered'));
@@ -32,8 +32,8 @@ describe('the one true loop', () => {
     const world = createWorld();
     order(world, 2);
     runUntil(world, w => w.villagers[0].carrying !== null);
-    expect(world.stockpile.stock.timber).toBe(0);
-    runUntil(world, w => w.stockpile.stock.timber > 0);
+    expect(world.stockpile.stock.log).toBe(0);
+    runUntil(world, w => w.stockpile.stock.log > 0);
     expect(world.villagers[0].carrying).toBeNull();
   });
 });
@@ -42,7 +42,7 @@ describe('the job queue', () => {
   it('works a stack of orders one at a time, oldest first', () => {
     const world = createWorld();
     for (const id of [5, 6, 7]) order(world, id);
-    const events = runUntil(world, w => w.stockpile.stock.timber === 3, 9000);
+    const events = runUntil(world, w => w.stockpile.stock.log === 3, 9000);
     const felled = events.filter(event => event.kind === 'tree-felled').map(event => event.treeId);
     expect(felled).toEqual([5, 6, 7]);
     expect(world.villagers[0].jobId).toBeNull();
@@ -58,7 +58,7 @@ describe('the job queue', () => {
     const reasons = tick(world).filter(event => event.kind === 'order-rejected').map(event => event.reason);
     expect(reasons).toEqual(['unknown-tree', 'already-ordered']);
 
-    runUntil(world, w => w.stockpile.stock.timber > 0);
+    runUntil(world, w => w.stockpile.stock.log > 0);
     order(world, 3);
     expect(tick(world).filter(event => event.kind === 'order-rejected').map(event => event.reason)).toEqual(['already-felled']);
 
@@ -74,8 +74,8 @@ describe('the job queue', () => {
     tickTimes(world, 30);
     expect(jobForTree(world, 8)!.state).toBe('assigned');
 
-    world.inbox.push({ kind: 'cancel-harvest', treeId: 9 });
-    world.inbox.push({ kind: 'cancel-harvest', treeId: 8 });
+    world.inbox.push({ kind: 'cancel-fell', treeId: 9 });
+    world.inbox.push({ kind: 'cancel-fell', treeId: 8 });
     const events = tick(world);
     expect(kinds(events).filter(kind => kind === 'order-cancelled')).toHaveLength(2);
     expect(world.villagers[0].jobId).toBeNull();
@@ -83,7 +83,7 @@ describe('the job queue', () => {
     expect(findTree(world, 8)!.state).toBe('standing');
 
     tickTimes(world, 600);
-    expect(world.stockpile.stock.timber).toBe(0);
+    expect(world.stockpile.stock.log).toBe(0);
   });
 
   it('lets a carried log come home even after the order is cancelled', () => {
@@ -91,9 +91,9 @@ describe('the job queue', () => {
     order(world, 4);
     runUntil(world, w => w.villagers[0].carrying !== null);
     world.inbox.push({ kind: 'cancel-all' });
-    world.inbox.push({ kind: 'cancel-harvest', treeId: 4 });
-    runUntil(world, w => w.stockpile.stock.timber > 0);
-    expect(world.stockpile.stock.timber).toBe(1);
+    world.inbox.push({ kind: 'cancel-fell', treeId: 4 });
+    runUntil(world, w => w.stockpile.stock.log > 0);
+    expect(world.stockpile.stock.log).toBe(1);
   });
 });
 
@@ -107,9 +107,9 @@ describe('more hands', () => {
     expect(new Set(assignees).size).toBe(2);
     expect(world.trees.filter(tree => tree.reservedBy !== null)).toHaveLength(2);
 
-    runUntil(world, w => w.stockpile.stock.timber === 2, 6000);
+    runUntil(world, w => w.stockpile.stock.log === 2, 6000);
     expect(world.stats.treesFelled).toBe(2);
-    expect(world.villagers.every(villager => villager.activity.kind !== 'harvest')).toBe(true);
+    expect(world.villagers.every(villager => villager.activity.kind !== 'chop')).toBe(true);
   });
 });
 
@@ -136,7 +136,7 @@ describe('living in the meantime', () => {
     tickTimes(world, 2);
     expect(world.villagers[0].jobId).not.toBeNull();
     const activity = world.villagers[0].activity;
-    expect(activity.kind === 'travel' && activity.purpose).toBe('harvest');
+    expect(activity.kind === 'travel' && activity.purpose).toBe('fell');
   });
 
   it('abandons a job whose tree disappears', () => {

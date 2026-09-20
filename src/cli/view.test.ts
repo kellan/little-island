@@ -6,7 +6,7 @@ import { describeVillager, palette, renderEvents, renderMap, renderTrees, render
 const paint = palette(false);
 const ordered = (treeId: number) => {
   const world = createWorld();
-  world.inbox.push({ kind: 'order-harvest', treeId });
+  world.inbox.push({ kind: 'order-fell', treeId });
   return world;
 };
 
@@ -61,18 +61,19 @@ describe('the island in text', () => {
       'Robin sets off for #0',
       expect.stringMatching(/^Robin swings the axe \u00d7\d+$/),
       '#0 comes down',
-      'a log reaches the clearing \u2014 timber 1',
+      'a log reaches the clearing \u2014 log 1',
     ]);
   });
 });
 
 describe('the terminal client', () => {
-  it('plays a whole job from piped commands', () => {
+  it('plays a whole day at the hut from piped commands', () => {
     const transcript = execFileSync('node', ['src/cli/play.ts', '--no-color'], {
-      input: 'chop 0\nuntil\nhash\nquit\n', encoding: 'utf8', timeout: 30000,
+      input: 'huts\nuntil\nhuts\nquit\n', encoding: 'utf8', timeout: 30000,
     });
-    expect(transcript).toContain('#0 goes on the work list');
-    expect(transcript).toContain('a log reaches the clearing \u2014 timber 1');
-    expect(transcript).toContain('timber 1');
+    expect(transcript).toContain('takes the axe from the hut');
+    expect(transcript).toContain('a log goes into the hut \u2014 1 of 5');
+    expect(transcript).toContain('the hut is full');
+    expect(transcript).toContain('store 5/5 full');
   }, 30000);
 });

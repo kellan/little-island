@@ -1,7 +1,7 @@
 import { nextRandom } from './rng.ts';
 import { HOME, distance, onLand } from './terrain.ts';
 import { ISLAND_SEED, TICK_SECONDS, TREE_COUNT } from './tuning.ts';
-import { emptyStock, type Job, type Role, type Tree, type TreeKind, type Vec2, type Villager, type WareId, type WarePile, type World } from './types.ts';
+import { emptyStock, type Building, type BuildingKind, type Job, type Role, type Tree, type TreeKind, type Vec2, type Villager, type WareId, type WarePile, type World } from './types.ts';
 
 /** Seconds of world time. Derived from whole ticks, so it can never drift. */
 export function elapsedSeconds(world: World): number {
@@ -14,17 +14,20 @@ export function secondsToTicks(seconds: number): number {
 
 export function createWorld(seed = ISLAND_SEED): World {
   const world: World = {
-    version: 3,
+    version: 4,
     tick: 0,
+    day: 1,
     seed,
     trees: [],
     villagers: [],
+    buildings: [],
     piles: [],
     jobs: [],
     stockpile: { x: HOME.x, z: HOME.z, stock: emptyStock() },
     nextJobId: 1,
     nextVillagerId: 1,
     nextPileId: 1,
+    nextBuildingId: 1,
     inbox: [],
     stats: { treesFelled: 0, logsDelivered: 0, ordersQueued: 0 },
   };
@@ -52,6 +55,8 @@ export function addVillager(world: World, name: string, at: Vec2, role: Role = '
     px: at.x,
     pz: at.z,
     facing: 0,
+    workplace: null,
+    tool: null,
     activity: { kind: 'idle' },
     jobId: null,
     carrying: null,
@@ -63,6 +68,43 @@ export function addVillager(world: World, name: string, at: Vec2, role: Role = '
 
 export function findTree(world: World, id: number): Tree | undefined {
   return world.trees.find(tree => tree.id === id);
+}
+
+/** Raise a building. It does nothing until somebody works there. */
+export function addBuilding(world: World, kind: BuildingKind, at: Vec2, capacity: number, radius: number): Building {
+  const building: Building = { id: world.nextBuildingId++, kind, x: at.x, z: at.z, radius, workerId: null, stock: emptyStock(), capacity };
+  world.buildings.push(building);
+  return building;
+}
+
+export function findBuilding(world: World, id: number | null): Building | undefined {
+  return id === null ? undefined : world.buildings.find(building => building.id === id);
+}
+
+/** Put somebody to work at a building, taking them off their old one. */
+export function hire(world: World, villager: Villager, building: Building): void {
+  for (const other of world.buildings) if (other.workerId === villager.id) other.workerId = null;
+  const previous = findVillager(world, building.workerId);
+  if (previous) { previous.workplace = null; previous.tool = null; }
+  building.workerId = villager.id;
+  villager.workplace = building.id;
+}
+
+export function workplaceOf(world: World, villager: Villager): Building | undefined {
+  return findBuilding(world, villager.workplace);
+}
+
+export function heldIn(building: Building): number {
+  return Object.values(building.stock).reduce((total, count) => total + count, 0);
+}
+
+/** Everything the settlement holds of one ware, in every store. */
+export function totalWare(world: World, ware: WareId): number {
+  return world.stockpile.stock[ware] + world.buildings.reduce((sum, building) => sum + building.stock[ware], 0);
+}
+
+export function hasRoom(building: Building): boolean {
+  return heldIn(building) < building.capacity;
 }
 
 /** Put a ware on the ground. This is how anything enters the world with a place. */
@@ -101,7 +143,7 @@ export function activeJobs(world: World): Job[] {
 
 /** An outstanding order against this tree, if any. Used to make clicks a toggle. */
 export function jobForTree(world: World, treeId: number): Job | undefined {
-  return world.jobs.find(job => job.kind === 'harvest' && job.treeId === treeId && (job.state === 'queued' || job.state === 'assigned'));
+  return world.jobs.find(job => job.kind === 'fell' && job.treeId === treeId && (job.state === 'queued' || job.state === 'assigned'));
 }
 
 export function idleVillagers(world: World): Villager[] {
@@ -120,17 +162,19 @@ export function hashWorld(world: World): string {
   let hash = 2166136261;
   const mix = (n: number) => { hash ^= Math.round(n * 1000) | 0; hash = Math.imul(hash, 16777619); };
   const mixText = (text: string) => { for (let i = 0; i < text.length; i++) mix(text.charCodeAt(i)); };
-  mix(world.tick); mix(world.seed);
+  mix(world.tick); mix(world.day); mix(world.seed);
   for (const [ware, count] of Object.entries(world.stockpile.stock)) { mixText(ware); mix(count); }
   mix(world.stats.treesFelled); mix(world.stats.logsDelivered); mix(world.stats.ordersQueued);
   for (const tree of world.trees) { mix(tree.id); mix(tree.x); mix(tree.z); mixText(tree.state); mix(tree.reservedBy ?? -1); }
   for (const villager of world.villagers) {
     mix(villager.id); mix(villager.x); mix(villager.z); mix(villager.facing); mixText(villager.role);
     mixText(villager.activity.kind); mix(villager.jobId ?? -1); mix(villager.carrying?.amount ?? 0);
-    if (villager.activity.kind === 'harvest') mix(villager.activity.progress);
+    mix(villager.workplace ?? -1); mixText(villager.tool ?? 'none');
+    if (villager.activity.kind === 'chop') mix(villager.activity.progress);
     if (villager.activity.kind === 'travel') { mix(villager.activity.to.x); mix(villager.activity.to.z); }
   }
+  for (const building of world.buildings) { mix(building.id); mix(building.workerId ?? -1); mix(heldIn(building)); }
   for (const pile of world.piles) { mix(pile.id); mixText(pile.ware); mix(pile.amount); mix(pile.x); mix(pile.z); mix(pile.reservedBy ?? -1); }
-  for (const job of world.jobs) { mix(job.id); mixText(job.kind); mix(job.kind === 'harvest' ? job.treeId : job.pileId); mixText(job.state); mix(job.assignee ?? -1); }
+  for (const job of world.jobs) { mix(job.id); mixText(job.kind); mix(job.kind === 'fell' ? job.treeId : job.pileId); mixText(job.state); mix(job.assignee ?? -1); }
   return (hash >>> 0).toString(16).padStart(8, '0');
 }

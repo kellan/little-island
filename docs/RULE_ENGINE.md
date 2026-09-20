@@ -16,6 +16,25 @@ src/sim/
   serialize.ts  the persistence boundary
 ```
 
+## The words
+
+One noun per idea, used the same way in the code, the terminal and these docs.
+
+| Word | Means |
+| --- | --- |
+| **ware** | a thing that can be carried and stored: a **log**, a **stone** |
+| **tree** | a resource standing in the world; felling one yields a log |
+| **pile** | a ware lying on the ground where it was dropped |
+| **building** | a place that gives out work and stores wares; so far, a **lumberjack hut** |
+| **worker** | a villager assigned to a building |
+| **job** | one piece of work with an owner. Kinds: **fell**, **haul** |
+| **activity** | what a villager is doing this tick: idle, travel, chop |
+| **stock**, **capacity** | what a building holds, and the limit that stops its work |
+| **tool** | what a worker picks up at their building to start the day: an **axe** |
+
+Not used, to keep this honest: *task* (it is a job), *resource* for a carried
+thing (it is a ware), *harvest* (a tree is **felled**; the action is **chopping**).
+
 ## A rule
 
 A rule is three small parts. What it looks at, whether it applies, and what it
@@ -43,20 +62,25 @@ rules run in the order they are listed. That ordering is the whole scheduler.
 
 | Phase | Rule | Book | What it does |
 | --- | --- | --- | --- |
-| intake | `accept-commands` | both | Applies the orders the player queued since the last tick, one at a time, in order. |
-| plan | `drop-impossible-jobs` | both | Cancels any job whose tree or ware has gone, freeing whoever was sent for it. |
-| plan | `list-loose-wares` | hauling | Notices a ware lying on the ground and adds fetching it to the work list. |
-| plan | `assign-jobs` | both | Hands the most pressing queued job to the nearest free villager whose role takes that work. |
-| act | `walk` | both | Moves a travelling villager toward their destination and turns them to face it. |
-| act | `chop` | both | Advances a chop and emits one swing event per axe stroke, so sound and dust follow the work. |
-| resolve | `arrive-at-tree` | both | Turns a walk into work once the villager is within arm's reach of their tree. |
+| intake | `accept-commands` | all | Applies the orders the player queued since the last tick, one at a time, in order. |
+| plan | `drop-impossible-jobs` | all | Cancels any job whose tree or ware has gone, freeing whoever was sent for it. |
+| plan | `clock-on` | lumberjack | Sends a villager with a workplace and no tool to their building to start the day. |
+| plan | `hut-picks-a-tree` | lumberjack | A lumberjack hut with room in its store sends its worker to the nearest tree in range. |
+| plan | `list-loose-wares` | hauling, lumberjack | Notices a ware lying on the ground and adds fetching it to the work list. |
+| plan | `assign-jobs` | all | Hands the most pressing queued job to the nearest free villager whose role takes that work. |
+| act | `walk` | all | Moves a travelling villager toward their destination and turns them to face it. |
+| act | `chop` | all | Advances a chop and emits one swing event per axe stroke, so sound and dust follow the work. |
+| resolve | `take-tool` | lumberjack | Hands the villager the axe kept at their building; the working day starts here. |
+| resolve | `arrive-at-tree` | all | Turns a walk into work once the villager is within arm's reach of their tree. |
 | resolve | `fell-tree` | settlement | Drops the tree when the chop completes and puts a log in the villager's arms. |
-| resolve | `fell-tree-to-ground` | hauling | Drops the tree when the chop completes and leaves a log lying where it fell. |
-| resolve | `collect-ware` | hauling | Picks a ware up off the ground and sets off for the stockpile with it. |
-| resolve | `store-delivery` | both | Adds a carried ware to the stockpile the moment the villager reaches the clearing. |
-| resolve | `finish-roaming` | both | Ends a wander at its destination and buys the villager a moment of rest. |
-| upkeep | `wander-when-idle` | both | Sends a rested villager with nothing left to do on a short stroll near the clearing. |
-| upkeep | `forget-finished-jobs` | both | Prunes done and cancelled jobs a second after they end, keeping saved state small. |
+| resolve | `fell-tree-to-ground` | hauling, lumberjack | Drops the tree when the chop completes and leaves a log lying where it fell. |
+| resolve | `collect-ware` | hauling, lumberjack | Picks a ware up off the ground and sets off for the stockpile with it. |
+| resolve | `store-in-building` | lumberjack | Puts a carried ware into the worker's own building, up to its capacity. |
+| resolve | `store-delivery` | all | Adds a carried ware to the stockpile the moment the villager reaches the clearing. |
+| resolve | `finish-roaming` | all | Ends a wander at its destination and buys the villager a moment of rest. |
+| upkeep | `wander-when-idle` | all | Sends a rested villager with nothing left to do on a short stroll near the clearing. |
+| upkeep | `new-day` | lumberjack | Turns the day over; tools stay at the building, so everyone clocks on again. |
+| upkeep | `forget-finished-jobs` | all | Prunes done and cancelled jobs a second after they end, keeping saved state small. |
 
 ## Two rulebooks
 
@@ -65,16 +89,19 @@ second list rather than a second codebase.
 
 - **`SETTLEMENT`** is what the browser island runs. One villager sees a job
   through: walk, chop, carry the log home.
-- **`HAULING`** is the economy experiment, reachable only from the terminal
+- **`HAULING`** is the first economy experiment, reachable only from the terminal
   (`bin/play --rules hauling`). A felled tree leaves a log on the ground; noticing
-  it and fetching it are separate work, which is how a building's output will
-  reach a stockpile later.
+  it and fetching it are separate work.
+- **`LUMBERJACK`** is where the work comes from a building instead of from the
+  player. It is what `bin/play` runs by default: a villager assigned to a
+  lumberjack hut clocks on, takes the axe, fells the nearest tree in range, hauls
+  the log back, and stops when the store is full.
 
-They differ by one rule swapped and three added. `bin/play` can switch between
+`HAULING` differs from `SETTLEMENT` by one rule swapped and three added; `LUMBERJACK` adds five more. `bin/play` can switch between
 them mid-session with `rulebook <id>`, which is the clearest demonstration that
 rules are data: the island does not change, only what happens on it.
 
-That is the entire game so far: fourteen rules across two rulebooks, two wares, two kinds of job.
+That is the entire game so far: nineteen rules across three rulebooks, two wares, two kinds of job.
 
 ## Watching it think
 

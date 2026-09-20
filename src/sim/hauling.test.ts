@@ -14,7 +14,7 @@ const rules = HAULING.rules;
 const run = (world: World, count: number) => tickTimes(world, count, { rules });
 const kinds = (events: SimEvent[]) => events.map(event => event.kind);
 const ordering = (world: World, ...treeIds: number[]) => {
-  for (const treeId of treeIds) world.inbox.push({ kind: 'order-harvest', treeId });
+  for (const treeId of treeIds) world.inbox.push({ kind: 'order-fell', treeId });
   return world;
 };
 const until = (world: World, done: (world: World) => boolean, limit = 4000) => {
@@ -29,40 +29,40 @@ describe('wares on the ground', () => {
     until(world, w => w.piles.length > 0);
     const [pile] = world.piles;
     const tree = world.trees[0];
-    expect(pile).toMatchObject({ ware: 'timber', amount: 1, reservedBy: null });
+    expect(pile).toMatchObject({ ware: 'log', amount: 1, reservedBy: null });
     expect(Math.hypot(pile.x - tree.x, pile.z - tree.z)).toBe(0);
     expect(world.villagers[0].carrying).toBeNull();
-    expect(world.stockpile.stock.timber).toBe(0);
+    expect(world.stockpile.stock.log).toBe(0);
     expect(world.villagers[0].jobId).toBeNull(); // The felling job is finished.
   });
 
   it('notices the loose log, fetches it and stockpiles it', () => {
     const world = ordering(createWorld(), 0);
-    const events = until(world, w => w.stockpile.stock.timber > 0);
+    const events = until(world, w => w.stockpile.stock.log > 0);
     expect(kinds(events)).toEqual(expect.arrayContaining(['tree-felled', 'ware-dropped', 'ware-collected', 'ware-delivered']));
     expect(kinds(events).indexOf('ware-dropped')).toBeLessThan(kinds(events).indexOf('ware-collected'));
     expect(world.piles).toHaveLength(0);
-    expect(world.stockpile.stock.timber).toBe(1);
+    expect(world.stockpile.stock.log).toBe(1);
   });
 
-  it('carries any ware, not just timber', () => {
+  it('carries any ware, not just logs', () => {
     const world = createWorld();
     dropWare(world, 'stone', { x: HOME.x + 3, z: HOME.z }, 2);
     until(world, w => w.stockpile.stock.stone > 0);
-    expect(world.stockpile.stock).toEqual({ timber: 0, stone: 2 });
-    expect(world.stats.logsDelivered).toBe(0); // Timber counts as timber, stone does not.
+    expect(world.stockpile.stock).toEqual({ log: 0, stone: 2 });
+    expect(world.stats.logsDelivered).toBe(0); // Logs count as logs, stone does not.
   });
 
   it('sends exactly one villager for one log', () => {
     const world = createWorld();
     addVillager(world, 'Wren', HOME);
-    dropWare(world, 'timber', { x: HOME.x + 5, z: HOME.z + 1 });
+    dropWare(world, 'log', { x: HOME.x + 5, z: HOME.z + 1 });
     run(world, 1);
     expect(world.jobs.filter(job => job.kind === 'haul')).toHaveLength(1);
     expect(loosePiles(world)).toHaveLength(0);
     expect(world.villagers.filter(villager => villager.jobId !== null)).toHaveLength(1);
-    until(world, w => w.stockpile.stock.timber > 0);
-    expect(world.stockpile.stock.timber).toBe(1);
+    until(world, w => w.stockpile.stock.log > 0);
+    expect(world.stockpile.stock.log).toBe(1);
   });
 
   it('will not let the player call off the settlement’s own errands', () => {
@@ -72,13 +72,13 @@ describe('wares on the ground', () => {
     world.inbox.push({ kind: 'cancel-all' });
     run(world, 1);
     expect(world.jobs.some(job => job.kind === 'haul' && job.state === 'assigned')).toBe(true);
-    until(world, w => w.stockpile.stock.timber > 0);
-    expect(world.stockpile.stock.timber).toBe(1);
+    until(world, w => w.stockpile.stock.log > 0);
+    expect(world.stockpile.stock.log).toBe(1);
   });
 
   it('gives up on a ware that disappears from under the errand', () => {
     const world = createWorld();
-    dropWare(world, 'timber', { x: HOME.x + 6, z: HOME.z + 2 });
+    dropWare(world, 'log', { x: HOME.x + 6, z: HOME.z + 2 });
     run(world, 2);
     world.piles = [];
     const events = run(world, 1);
@@ -92,7 +92,7 @@ describe('roles', () => {
     const world = ordering(createWorld(), 0, 1);
     world.villagers[0].role = 'feller';
     const carrier = addVillager(world, 'Wren', HOME, 'carrier');
-    until(world, w => w.stockpile.stock.timber === 2, 6000);
+    until(world, w => w.stockpile.stock.log === 2, 6000);
     expect(world.stats.treesFelled).toBe(2);
     expect(world.villagers[0].role).toBe('feller');
     expect(carrier.carrying).toBeNull();
@@ -115,8 +115,8 @@ describe('the two rulebooks', () => {
       tick(settle, { rules: SETTLEMENT.rules });
       tick(haul, { rules: HAULING.rules });
     }
-    expect(settle.stockpile.stock.timber).toBe(2);
-    expect(haul.stockpile.stock.timber).toBe(2);
+    expect(settle.stockpile.stock.log).toBe(2);
+    expect(haul.stockpile.stock.log).toBe(2);
     expect(settle.piles).toHaveLength(0); // Nothing in the browser rules drops a ware.
     expect(hashWorld(settle)).not.toBe(hashWorld(haul));
   });
@@ -129,6 +129,6 @@ describe('the two rulebooks', () => {
     run(world, 800);
     run(restored, 800);
     expect(hashWorld(restored)).toBe(hashWorld(world));
-    expect(restored.stockpile.stock.timber).toBe(2);
+    expect(restored.stockpile.stock.log).toBe(2);
   });
 });

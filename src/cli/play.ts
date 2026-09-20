@@ -13,9 +13,9 @@
 import { createInterface } from 'node:readline';
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
-  HAULING, HOME, RULEBOOKS, addVillager, createSimulation, createWorld, deserialize, dropWare,
-  enqueue, hashWorld, ROLES, serialize, tickTimes, tuning, WARES,
-  type Role, type Rulebook, type SimEvent, type WareId, type World,
+  HOME, LUMBERJACK, RULEBOOKS, addBuilding, addVillager, createSimulation, createWorld,
+  deserialize, dropWare, enqueue, findBuilding, hashWorld, hire, ROLES, serialize, tickTimes,
+  tuning, WARES, type Role, type Rulebook, type SimEvent, type WareId, type World,
 } from '../sim/index.ts';
 import * as view from './view.ts';
 
@@ -38,9 +38,16 @@ const asked = Number(option('--seed'));
 const seed = Number.isFinite(asked) ? asked : tuning.ISLAND_SEED;
 const loaded = option('--load') ? load(option('--load')!) : null;
 if (option('--load') && !loaded) say(paint.warn(`could not read a world from ${option('--load')}`));
-const chosen = RULEBOOKS.find(book => book.id === option('--rules')) ?? HAULING;
+const chosen = RULEBOOKS.find(book => book.id === option('--rules')) ?? LUMBERJACK;
 const sim = createSimulation(loaded ?? createWorld(seed), chosen);
 const origin = loaded ? 'a saved island' : `seed ${seed}`;
+
+// A hut with nobody in it does nothing, so a fresh lumberjack island comes with one.
+if (chosen.id === 'lumberjack' && !sim.world.buildings.length) {
+  const hut = addBuilding(sim.world, 'lumberjack-hut', { x: HOME.x + 2.4, z: HOME.z - 1.5 }, tuning.HUT_CAPACITY, tuning.HUT_RADIUS);
+  const first = sim.world.villagers[0];
+  if (first) hire(sim.world, first, hut);
+}
 
 const seconds = (text: string | undefined, fallback: number) => {
   const value = Number(text);
@@ -86,19 +93,28 @@ function settle(): void {
   report(run(1));
 }
 
+/** True while a hut has room in its store and a tree left within reach. */
+function hasWork(world: World, building: { x: number; z: number; radius: number; capacity: number; stock: Record<string, number> }): boolean {
+  const held = Object.values(building.stock).reduce((total, count) => total + count, 0);
+  if (held >= building.capacity) return false;
+  return world.trees.some(tree => tree.state === 'standing' && Math.hypot(tree.x - building.x, tree.z - building.z) <= building.radius);
+}
+
 /** Work still to do: a job open, a ware in someone's arms, or one lying about. */
 function outstanding(world: World): boolean {
   return world.jobs.some(job => job.state === 'queued' || job.state === 'assigned')
     || world.villagers.some(villager => villager.carrying !== null)
     || world.piles.length > 0
-    || world.inbox.length > 0;
+    || world.inbox.length > 0
+    || world.villagers.some(villager => villager.workplace !== null && villager.tool === null)
+    || world.buildings.some(building => building.workerId !== null && hasWork(world, building));
 }
 
 type Command = { about: string; run(args: string[]): void };
 
 const commands: Record<string, Command> = {
   look: { about: 'draw the island', run: () => { say(); say(view.renderMap(sim.world, paint)); say(); say(view.renderLegend(paint)); } },
-  status: { about: 'time, timber, who is doing what', run: () => say(view.renderStatus(sim.world, paint)) },
+  status: { about: 'the time, the stock, who is doing what', run: () => say(view.renderStatus(sim.world, paint)) },
   trees: { about: 'trees [n] — the nearest standing trees and their numbers', run: (args) => say(view.renderTrees(sim.world, paint, seconds(args[0], 10))) },
   chop: {
     about: 'chop <n...> — put trees on the work list',
@@ -107,7 +123,7 @@ const commands: Record<string, Command> = {
       for (const raw of args) {
         const id = Number(raw.replace('#', ''));
         if (!Number.isInteger(id)) { say(paint.warn(`  ${raw} is not a tree number`)); continue; }
-        enqueue(sim, { kind: 'order-harvest', treeId: id });
+        enqueue(sim, { kind: 'order-fell', treeId: id });
       }
       settle();
     },
@@ -116,7 +132,7 @@ const commands: Record<string, Command> = {
     about: 'cancel <n|all> — call off an order',
     run: (args) => {
       if (args[0] === 'all') enqueue(sim, { kind: 'cancel-all' });
-      else if (args.length) for (const raw of args) enqueue(sim, { kind: 'cancel-harvest', treeId: Number(raw.replace('#', '')) });
+      else if (args.length) for (const raw of args) enqueue(sim, { kind: 'cancel-fell', treeId: Number(raw.replace('#', '')) });
       else return say(paint.dim('  cancel which one? a tree number, or all'));
       settle();
     },
@@ -166,6 +182,27 @@ const commands: Record<string, Command> = {
       sim.rulebook = next;
       say(`  now running ${paint.bold(next.id)}  ${paint.dim(next.about)}`);
       if (next.id === 'settlement' && sim.world.piles.length) say(paint.dim('  (nothing in these rules fetches a ware off the ground, so what is lying about stays lying about)'));
+    },
+  },
+  huts: { about: 'the buildings: who works there, what is in the store', run: () => say(view.renderBuildings(sim.world, paint)) },
+  hire: {
+    about: 'hire <name> [hut] — put somebody to work at a building',
+    run: (args) => {
+      const villager = sim.world.villagers.find(person => person.name.toLowerCase() === (args[0] ?? '').toLowerCase());
+      if (!villager) return say(paint.warn(`  nobody here is called ${args[0] ?? 'that'}`));
+      const hut = findBuilding(sim.world, Number(args[1] ?? sim.world.buildings[0]?.id ?? NaN));
+      if (!hut) return say(paint.warn('  there is no such building'));
+      hire(sim.world, villager, hut);
+      villager.tool = null;
+      say(`  ${villager.name} now works at hut #${hut.id}`);
+    },
+  },
+  build: {
+    about: 'build hut — put up a lumberjack hut where the first villager stands',
+    run: () => {
+      const at = sim.world.villagers[0] ?? HOME;
+      const hut = addBuilding(sim.world, 'lumberjack-hut', at, tuning.HUT_CAPACITY, tuning.HUT_RADIUS);
+      say(`  hut #${hut.id} goes up at ${hut.x.toFixed(1)}, ${hut.z.toFixed(1)} — nobody works there yet`);
     },
   },
   wares: { about: 'what is in the stockpile, and what is still lying about', run: () => say(view.renderWares(sim.world, paint)) },
@@ -241,7 +278,7 @@ function perform(line: string): void {
 }
 
 say();
-say(`${paint.bold('Little Island')} ${paint.dim(`— a settlement you type at. seed ${sim.world.seed}, ${sim.world.trees.length} trees.`)}`);
+say(`${paint.bold('Little Island')} ${paint.dim(`— a settlement you type at. seed ${origin}, ${sim.world.trees.length} trees.`)}`);
 say(paint.dim(`help for commands. trees, then chop 0, then until.`));
 say(paint.dim(`rules: ${sim.rulebook.id} \u2014 ${sim.rulebook.about}`));
 say();
