@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { elevation, random, HOME, CHOP_TIME, type World } from './simulation';
+import { disposeObject } from './dispose';
 
 const mat = (color: string | number, roughness = 1) => new THREE.MeshStandardMaterial({ color, roughness, flatShading: true });
 const bark = mat('#845335'), barkLight = mat('#c58d58'), leaf = [mat('#72933f'), mat('#8aab4b'), mat('#4f7e48'), mat('#a6b95b')];
@@ -102,7 +103,7 @@ export class IslandScene {
     if(target){this.marker.position.set(target.x,elevation(target.x,target.z)+.04,target.z);this.marker.scale.setScalar(1+Math.sin(realTime*4)*.04);}
     this.dust.visible=chopping;
     if(chopping&&target){for(let i=0;i<18;i++){const age=(t*1.6+i/18)%1,angle=i*2.4;this.dustPositions[i*3]=target.x+Math.sin(angle)*age*.8;this.dustPositions[i*3+1]=elevation(target.x,target.z)+.6+age*.5-age*age;this.dustPositions[i*3+2]=target.z+Math.cos(angle)*age*.8;}this.dust.geometry.attributes.position.needsUpdate=true;}
-    if(this.lastLogs!==w.logs){this.lastLogs=w.logs;this.stockpile.clear();for(let i=0;i<Math.min(w.logs,40);i++){const x=HOME.x+1+(i%4)*.31,y=elevation(HOME.x+1,HOME.z)+.16+Math.floor(i/8)*.27,z=HOME.z+.45+Math.floor(i%8/4)*1.1;const log=mesh(new THREE.CylinderGeometry(.14,.15,.95,8),bark,this.stockpile,x,y,z);log.rotation.x=Math.PI/2;for(const sign of [-1,1]){const end=mesh(new THREE.CircleGeometry(.13,8),barkLight,this.stockpile,x,y,z+sign*.48);end.rotation.y=sign<0?Math.PI:0;}}}
+    if(this.lastLogs!==w.logs){this.lastLogs=w.logs;for(const log of [...this.stockpile.children])disposeObject(log,{keepMaterials:true});this.stockpile.clear();for(let i=0;i<Math.min(w.logs,40);i++){const x=HOME.x+1+(i%4)*.31,y=elevation(HOME.x+1,HOME.z)+.16+Math.floor(i/8)*.27,z=HOME.z+.45+Math.floor(i%8/4)*1.1;const log=mesh(new THREE.CylinderGeometry(.14,.15,.95,8),bark,this.stockpile,x,y,z);log.rotation.x=Math.PI/2;for(const sign of [-1,1]){const end=mesh(new THREE.CircleGeometry(.13,8),barkLight,this.stockpile,x,y,z+sign*.48);end.rotation.y=sign<0?Math.PI:0;}}}
     this.controls.update();this.renderer.render(this.scene,this.camera);
   }
   screenPoint(){const v=this.world.villager,p=new THREE.Vector3(v.x,elevation(v.x,v.z)+1.8,v.z).project(this.camera);return{x:(p.x*.5+.5)*innerWidth,y:(-.5*p.y+.5)*innerHeight,progress:v.progress/CHOP_TIME};}

@@ -2,6 +2,9 @@ import './stress.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createStressWorld, deserializeStress, hashStress, retarget, serializeStress, stepStress, type StressWorld } from './stress-simulation';
+import { FrameMetrics } from './frame-metrics';
+import { advance, createAccumulator } from './timestep';
+import { disposeObject } from './dispose';
 document.title = 'Little Island — technical proving ground';
 
 type Settings = { trees:number; agents:number; shadows:boolean; paused:boolean; autoOrbit:boolean };
@@ -29,8 +32,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML=`
   </aside>
   <section class="metrics">
     <div class="metric hero"><span>FRAME RATE</span><strong id="fps">—</strong><small>FPS</small><i id="budget"></i></div>
-    <div class="metric"><span>P95 FRAME</span><strong id="p95">—</strong><small>MS</small></div>
-    <div class="metric"><span>SIMULATION</span><strong id="sim">—</strong><small>MS / TICK</small></div>
+    <div class="metric"><span>P95 FRAME</span><strong id="p95">—</strong><small id="worst">MS</small></div>
+    <div class="metric"><span>SIMULATION</span><strong id="sim">—</strong><small>MS / FRAME</small></div>
+    <div class="metric"><span>INSTANCING</span><strong id="instancing">—</strong><small>MS / FRAME</small></div>
     <div class="metric"><span>DRAW CALLS</span><strong id="draws">—</strong><small>PER FRAME</small></div>
     <div class="metric"><span>TRIANGLES</span><strong id="triangles">—</strong><small>PER FRAME</small></div>
     <div class="metric"><span>SAVE / LOAD</span><strong id="save">—</strong><small id="save-size">NOT RUN</small></div>
@@ -55,15 +59,14 @@ const island=new THREE.Mesh(new THREE.CylinderGeometry(21,22,.7,96),new THREE.Me
 let world:StressWorld=createStressWorld(settings.agents);let forest=new THREE.Group(),workers=new THREE.Group();scene3.add(forest,workers);
 let trunks:THREE.InstancedMesh|null=null,crowns:THREE.InstancedMesh|null=null,people:THREE.InstancedMesh|null=null;
 const dummy=new THREE.Object3D(),rng=(seed:number)=>{let s=seed;return()=>((s=(Math.imul(1664525,s)+1013904223)>>>0)/4294967296)};
-function disposeGroup(group:THREE.Group){group.traverse(object=>{if(!(object instanceof THREE.Mesh))return;object.geometry.dispose();const materials=Array.isArray(object.material)?object.material:[object.material];for(const material of materials)material.dispose();});}
-function rebuildForest(){scene3.remove(forest);disposeGroup(forest);forest.clear();forest=new THREE.Group();scene3.add(forest);const random=rng(73);
+function rebuildForest(){disposeObject(forest);forest=new THREE.Group();scene3.add(forest);const random=rng(73);
   trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.09,.16,1.25,5),new THREE.MeshStandardMaterial({color:'#795139',roughness:1,flatShading:true}),settings.trees);
   crowns=new THREE.InstancedMesh(new THREE.ConeGeometry(.68,1.65,6),new THREE.MeshStandardMaterial({color:'#638a47',roughness:1,flatShading:true}),settings.trees);
   for(let i=0;i<settings.trees;i++){const a=random()*Math.PI*2,r=2.6+Math.sqrt(random())*17.5,x=Math.cos(a)*r,z=Math.sin(a)*r*.72,s=.6+random()*.75;
     dummy.position.set(x,.6*s,z);dummy.scale.setScalar(s);dummy.rotation.set(0,random()*Math.PI,0);dummy.updateMatrix();trunks.setMatrixAt(i,dummy.matrix);
     dummy.position.y=1.65*s;dummy.rotation.y+=.4;dummy.updateMatrix();crowns.setMatrixAt(i,dummy.matrix);}
   for(const mesh of [trunks,crowns]){mesh.castShadow=settings.shadows;mesh.receiveShadow=settings.shadows;forest.add(mesh);} }
-function rebuildWorkers(){scene3.remove(workers);disposeGroup(workers);workers.clear();workers=new THREE.Group();scene3.add(workers);world=createStressWorld(settings.agents);
+function rebuildWorkers(){disposeObject(workers);workers=new THREE.Group();scene3.add(workers);world=createStressWorld(settings.agents);
   people=new THREE.InstancedMesh(new THREE.CapsuleGeometry(.12,.34,2,5),new THREE.MeshStandardMaterial({color:'#de7e52',roughness:1}),settings.agents);people.castShadow=settings.shadows;workers.add(people);updateWorkers();}
 function updateWorkers(){if(!people)return;for(let i=0;i<world.agents.length;i++){const a=world.agents[i];dummy.position.set(a.x,.55,a.z);dummy.scale.setScalar(i%11===0?1.18:1);dummy.rotation.set(0,Math.atan2(a.targetX-a.x,a.targetZ-a.z),0);dummy.updateMatrix();people.setMatrixAt(i,dummy.matrix);}people.instanceMatrix.needsUpdate=true;}
 function shadows(){renderer.shadowMap.enabled=settings.shadows;sun.castShadow=settings.shadows;rebuildForest();if(people)people.castShadow=settings.shadows;}
@@ -73,14 +76,23 @@ function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h);camera.
 const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();let pickMs=0;
 canvas.addEventListener('pointermove',event=>{if(event.buttons||!crowns)return;const rect=canvas.getBoundingClientRect();pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);const start=performance.now();raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObject(crowns,false)[0];pickMs=performance.now()-start;canvas.style.cursor=hit?'crosshair':'grab';});
 
-const frames:number[]=[],simSamples:number[]=[];let last=performance.now(),metricAt=last,saveLabel='—',saveSize='NOT RUN',soakRoundTrips=0;
-function roundTrip(){const start=performance.now(),before=hashStress(world),raw=serializeStress(world);const restored=deserializeStress(raw);const after=hashStress(restored);world=restored;const elapsed=performance.now()-start;saveLabel=`${elapsed.toFixed(1)}`;saveSize=`${(raw.length/1024).toFixed(1)} KB · ${before===after?'EXACT':'MISMATCH'}`;soakRoundTrips++;}
-function updateMetrics(now:number){const recent=[...frames].sort((a,b)=>a-b),p95=recent[Math.floor(recent.length*.95)]??0,avg=frames.reduce((a,b)=>a+b,0)/Math.max(1,frames.length);
-  $('#fps').textContent=(1000/avg).toFixed(0);$('#p95').textContent=p95.toFixed(1);$('#sim').textContent=(simSamples.reduce((a,b)=>a+b,0)/Math.max(1,simSamples.length)).toFixed(2);
-  $('#draws').textContent=renderer.info.render.calls.toLocaleString();$('#triangles').textContent=renderer.info.render.triangles.toLocaleString();$('#save').textContent=saveLabel;$('#save-size').textContent=saveSize;$('#pick').textContent=pickMs.toFixed(2);$('#hash').textContent=hashStress(world);
-  const budget=$('#budget');budget.className=avg<=16.7?'good':avg<=33?'warn':'bad';budget.title=avg<=16.7?'Within 60 FPS budget':avg<=33?'Within 30 FPS budget':'Over frame budget';
-  frames.length=0;simSamples.length=0;metricAt=now;}
-function frame(now:number){const dt=Math.min((now-last)/1000,.1);last=now;frames.push(dt*1000);if(!settings.paused){const start=performance.now();stepStress(world,dt);simSamples.push(performance.now()-start);updateWorkers();}
+const metrics=new FrameMetrics(),simSamples:number[]=[],instanceSamples:number[]=[];const clock=createAccumulator();
+let last=performance.now(),metricAt=last,soakRoundTrips=0,primed=false;
+const average=(samples:number[])=>samples.reduce((a,b)=>a+b,0)/Math.max(1,samples.length);
+function roundTrip(){const start=performance.now(),before=hashStress(world),raw=serializeStress(world);const restored=deserializeStress(raw);const after=hashStress(restored);world=restored;const elapsed=performance.now()-start;soakRoundTrips++;
+  // Written straight to the panel: when a frame takes seconds, the once-a-second refresh is too late to be useful.
+  $('#save').textContent=elapsed.toFixed(1);$('#save-size').textContent=`${(raw.length/1024).toFixed(1)} KB · ${before===after?'EXACT':'MISMATCH'}`;}
+function updateMetrics(now:number){const summary=metrics.summary();
+  if(summary){$('#fps').textContent=summary.fps.toFixed(summary.fps<10?1:0);$('#p95').textContent=summary.p95.toFixed(1);$('#worst').textContent=`MS · WORST ${summary.worst.toFixed(0)}`;
+    const budget=$('#budget');budget.className=summary.budget;budget.title=summary.budget==='good'?'Within 60 FPS budget':summary.budget==='warn'?'Within 30 FPS budget':'Over frame budget';}
+  $('#sim').textContent=average(simSamples).toFixed(2);$('#instancing').textContent=average(instanceSamples).toFixed(2);
+  $('#draws').textContent=renderer.info.render.calls.toLocaleString();$('#triangles').textContent=renderer.info.render.triangles.toLocaleString();$('#pick').textContent=pickMs.toFixed(2);$('#hash').textContent=hashStress(world);
+  metrics.reset();simSamples.length=0;instanceSamples.length=0;metricAt=now;}
+function frame(now:number){const elapsed=now-last;last=now;
+  // The first callback carries page setup, not a rendered frame.
+  if(primed)metrics.push(elapsed);else primed=true;
+  if(!settings.paused){const simStart=performance.now();advance(clock,elapsed/1000,dt=>stepStress(world,dt));simSamples.push(performance.now()-simStart);
+    const instanceStart=performance.now();updateWorkers();instanceSamples.push(performance.now()-instanceStart);}
   if(settings.autoOrbit){const angle=now*.000045;camera.position.x=Math.cos(angle)*42;camera.position.z=Math.sin(angle)*42;camera.position.y=27;controls.target.set(0,0,0);}controls.update();renderer.render(scene3,camera);
   if(now-metricAt>1000)updateMetrics(now);if(scenario==='soak'&&Math.floor(world.time)%10===0&&world.time>soakRoundTrips*10)roundTrip();requestAnimationFrame(frame);}requestAnimationFrame(frame);
 

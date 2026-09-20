@@ -1,6 +1,7 @@
 import './style.css';
 import { createWorld, deserialize, serialize, orderChop, step } from './simulation';
 import { IslandScene } from './scene';
+import { advance, createAccumulator } from './timestep';
 const icons = {
   leaf:'<path d="M19 4C9 3 4 7 5 14c5 5 13 1 14-10Z"/><path d="m5 20 8-11"/>',
   wood:'<path d="m6 7 11-2c5 2 5 10 0 12L6 19"/><ellipse cx="6" cy="13" rx="4" ry="6"/><ellipse cx="6" cy="13" rx="1.5" ry="2.5"/>',
@@ -39,14 +40,18 @@ canvas.addEventListener('pointermove',event=>{if(event.buttons)return;const id=v
 canvas.addEventListener('pointerleave',()=>{$('#tooltip').hidden=true;});
 canvas.addEventListener('pointerup',event=>{if(event.button!==0||Math.hypot(event.clientX-down.x,event.clientY-down.y)>6)return;const id=view.pick(event.clientX,event.clientY);if(id===null)return;if(world.villager.phase==='returning'){toast('Robin is bringing a log home. Just a moment.');return;}if(orderChop(world,id)){selected=id;note(440);if(paused)toast('Tree selected. Press play when you’re ready.');save();}});
 function setPause(){paused=!paused;$('#pause').innerHTML=svg(paused?'play':'pause');$('#pause').setAttribute('aria-label',paused?'Resume simulation':'Pause simulation');$('#pause').title=paused?'Resume simulation':'Pause simulation';$('#pause').classList.toggle('active',paused);}
-$('#pause').onclick=setPause;$('#speed').onclick=()=>{speed=speed===1?2:speed===2?3:1;$('#speed').textContent=`${speed}×`;};
+$('#pause').onclick=setPause;$('#speed').onclick=()=>{speed=speed===1?2:speed===2?3:1;clock.maxSteps=STEPS_PER_SPEED*speed;$('#speed').textContent=`${speed}×`;};
 $('#sound').onclick=()=>{sound=!sound;$('#sound').innerHTML=svg(sound?'sound':'muted');$('#sound').setAttribute('aria-label',sound?'Mute sound effects':'Enable sound effects');$('#sound').title=sound?'Mute sound effects':'Enable sound effects';note(523,.2);};
 $('#focus').onclick=()=>view.focusVillager();$('.brand').onclick=e=>{e.preventDefault();view.resetCamera();};
 const help=$<HTMLDialogElement>('#help-dialog'),reset=$<HTMLDialogElement>('#reset-dialog');$('#help').onclick=()=>help.showModal();$('.dialog-close').onclick=()=>help.close();$('#start').onclick=()=>help.close();$('#reset').onclick=()=>reset.showModal();$('#cancel-reset').onclick=()=>reset.close();$('#confirm-reset').onclick=()=>{world=createWorld();view.world=world;selected=null;view.selected=null;view.lastLogs=-1;save();reset.close();toast('A fresh island. A world of possibility.');};
 window.addEventListener('keydown',event=>{if(event.code==='Space'&&!help.open&&!reset.open&&!(event.target instanceof HTMLButtonElement)){event.preventDefault();setPause();}if(event.key==='Escape'){$('#tooltip').hidden=true;}});
 window.addEventListener('pagehide',save);setInterval(save,5000);
 let previous=performance.now(),previousLogs=world.logs,lastChop=-1;
-function frame(now:number){const dt=Math.min((now-previous)/1000,.05);previous=now;if(!paused)for(let i=0;i<speed;i++)step(world,dt);view.update(now/1000);
+// Twelve steps of headroom per speed multiple, so 3x stays 3x on a slow display
+// while a backgrounded tab still cannot bank an afternoon of chopping.
+const STEPS_PER_SPEED=12;
+const clock=createAccumulator(1/60,STEPS_PER_SPEED);
+function frame(now:number){const elapsed=(now-previous)/1000;previous=now;if(!paused)advance(clock,elapsed*speed,dt=>step(world,dt));view.update(now/1000);
   const v=world.villager;$('#log-count').textContent=String(world.logs);$('#status').textContent=paused?'Enjoying a quiet moment':({idle:'Taking it all in',walking:'On the way to a tree',chopping:'Chop, chop. Making progress.',returning:'Bringing a log home'})[v.phase];$('#status-dot').classList.toggle('working',v.phase!=='idle');
   $('#objective-text').textContent=world.logs>0?`${world.logs} ${world.logs===1?'log':'logs'} gathered. Your small beginning is growing.`:v.phase==='idle'?'Click a tree. Robin will take it from here.':'Robin will bring your first log home.';
   $('#hint').classList.toggle('done',v.phase!=='idle'||world.logs>0);const progress=$('#work-progress');progress.hidden=v.phase!=='chopping';if(!progress.hidden){const point=view.screenPoint();progress.style.transform=`translate(${point.x}px, ${point.y}px) translate(-50%,-100%)`;$<HTMLElement>('#work-progress i').style.width=`${point.progress*100}%`;}
