@@ -152,13 +152,13 @@ come back.
 const sim = createSimulation();
 enqueue(sim, { kind: 'order-fell', treeId: 12 });
 for (const event of advance(sim, deltaSeconds)) {
-  if (event.kind === 'chop-swing') playAxeSound();
+  if (event.kind === 'work-stroke') playAxeSound();
 }
 ```
 
 | Commands | Events |
 | --- | --- |
-| `order-fell` · `cancel-fell` · `cancel-all` | **work:** `order-queued` · `order-rejected` · `order-cancelled` · `job-assigned` · `job-abandoned` · `supply-asked` · `chop-swing` · `shift-started` · `day-begins` · `waiting-for` · `store-full`<br>**wares:** `tree-felled` · `ware-gathered` · `ware-dropped` · `ware-collected` · `ware-taken` · `ware-stored` · `ware-delivered` · `ware-used` · `ware-made` |
+| `order-fell` · `cancel-fell` · `cancel-all` | **work:** `order-queued` · `order-rejected` · `order-cancelled` · `job-assigned` · `job-abandoned` · `supply-asked` · `work-stroke` · `shift-started` · `day-begins` · `waiting-for` · `store-full`<br>**wares:** `site-spent` · `ware-dropped` · `ware-collected` · `ware-taken` · `ware-stored` · `ware-delivered` · `ware-used` · `ware-made` |
 
 Every rejection carries a reason, so the interface can explain itself without
 re-deriving the rules: `unknown-tree`, `already-felled`, `already-ordered`,
@@ -170,8 +170,8 @@ They also have to carry their own numbers: an event that says "a plank was made"
 and leaves the reader to look up the current stock will report whatever the stock
 is when the line is finally printed, which is a bug we shipped and then caught.
 
-Three events create a ware — `ware-gathered`, `ware-dropped`, `ware-made` — and
-one destroys one, `ware-used`. Everything else only moves wares about. That is
+Two events create a ware — `ware-dropped` and `ware-made` — and one destroys one,
+`ware-used`. Everything else only moves wares about. That is
 what makes the ledger in `invariants.ts` possible, and it is checked after every
 tick of the soak test.
 
