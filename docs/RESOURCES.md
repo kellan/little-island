@@ -108,9 +108,31 @@ four at once is normal, not a sign it failed to upgrade.
    with no "you may not" message, and it makes walking distance the cost — which the
    existing simulation already models well.
 
-2. **Fishing — steady, water-locked.** Pier or hut, plus a net. Best yield per worker of
-   the early options. The stock is a shared pool that depletes under pressure and recovers
-   when rested; overfishing should be possible *and recoverable*, legible on the map.
+2. **Fishing — steady, water-locked, and two different verbs.** The stock is a shared
+   pool that depletes under pressure and recovers when rested; overfishing should be
+   possible *and recoverable*, legible on the map. Two structures, which are **not
+   tiers** — a settlement wants both:
+
+   - **Fish weir** — a stake-and-wattle trap set in a channel. It fishes whether or not
+     anyone is there. No labor to run, low yield, and **capped**: once full it stops, and
+     the surplus is lost. Placement is restricted to rare sites (river mouth, tidal
+     narrows). Cost `log x2, reed x6`, no tool. Buildable on day one, before a sawpit
+     exists — the one piece of food infrastructure a settlement with nothing can raise.
+   - **Fishing pier** — active. Higher yield, scales with workers, but costs a villager's
+     whole day. Cost `plank x6, log x2, cordage x4`, plus a **net** (`cordage x3`). Sits
+     behind a sawpit and a cordage source, so it is a real tech step rather than a free
+     upgrade.
+
+   The weir is insurance; the pier is production. The weir keeps a settlement alive during
+   the week everyone is busy building, and it never becomes obsolete because it never
+   costs labor. Note the pressures differ in kind: forage degrades into **walking time**,
+   the weir degrades into **waste**. Neither is a failure message.
+
+   Weirs are tidal. If a clock ever lands, "empty at low tide" gives them a daily rhythm
+   for free. Do not require it.
+
+   Later, the weir's stakes become *poles* from coppice rather than whole logs — a small
+   efficiency that gives coppice something to do the day it arrives.
 
 3. **Hunting — forest-coupled.** Lodge plus snares and traps. Game population is a
    function of standing forest: clear-cut the woods for planks and the deer leave. First
@@ -124,6 +146,25 @@ Hunting and fishing are **distinct systems**, not one "protein" building with tw
 categories (forage / protein / grain / dairy) is worth more than the same calories from
 one source. This is the Outlanders 2 mechanic and it is worth keeping: it is what stops
 the player from solving food once and forgetting it.
+
+## Cooking, and why forage is really the floor
+
+Split food goods by preparation:
+
+- **Eat raw** — berries, fruit, nuts, milk, some roots. Zero infrastructure. This is why
+  foraging is the baseline: not merely weak, but the only food that needs *nothing at all*.
+- **Must cook** — fish, meat, grain, most vegetables. Requires a **hearth** and
+  **firewood**.
+
+So the food ladder and the firewood tax are the same problem. The moment a settlement
+graduates from berries to fish, it has signed up for fuel — gathered off the forest floor
+early, and later logs through a wood chopper. That is a ladder rung with a cost attached
+rather than just a bigger number.
+
+It also gives meal variety a physical home. Raw forage can be eaten where it is picked; a
+*proper meal* is assembled at the hearth from several categories, and the hearth burns
+firewood every day it runs. The first hearth is therefore a real milestone: before it, the
+settlement eats cold berries, survives, and does not grow.
 
 ## Farming, and why it needs logic
 
@@ -165,6 +206,12 @@ without a rewrite, that is the safest path.
   point of choosing authored chains is that the graph is a table someone can edit.
 - Goods move physically — carried by villagers, as Robin already carries a log. Do not
   model transfers as instantaneous stockpile arithmetic.
+- **Two kinds of work, and the engine needs both from the start.** *Stationed* work means
+  a villager belongs to a building and goes there daily. *Errands* are one-off jobs any
+  free villager can claim: empty the weir, haul this, fetch that. Timberborn is all
+  stationed; The Settlers leans on carriers. The fish weir is the cheapest thing that
+  proves the need — assign it a dedicated worker and it is just a worse pier. Retrofitting
+  an errand queue onto a purely stationed model is miserable, so do not start stationed-only.
 
 ## First slice
 
@@ -201,6 +248,111 @@ wagging the dog.
 So: park it. When a settlement-skill concept does exist, coppice is the first thing to
 hang off it. Until then, do not build forest state that would make the split impossible
 to add later — a single global "trees remaining" count would.
+
+## Parked: a reservoir of weird historical vocabulary
+
+**Not for now.** At some point this game will want to go somewhere that feels new and
+surprising rather than like a well-made Settlers homage. When that happens, the most
+useful thing to have on hand is a stock of real preindustrial practices that are strange
+to a modern player but were ordinary to the people doing them. This section collects them.
+
+**The selection criterion matters more than the list.** An entry earns its place when it
+is:
+
+1. **Real and specific** — an actual practice with an actual name, not invented flavor.
+2. **Carrying a mechanic** — the word implies a rule. A name that is only decoration is a
+   worse version of the plain word.
+3. **Teaching something by existing** — the player ends up knowing a true thing.
+4. Ideally, making **terrain or timing matter**, since those are the two axes a settlement
+   game can express.
+
+`bloomery` passes on all four. Add to the list only things that do.
+
+**Reshaping land use**
+
+- **Assarting** — clearing woodland into new arable, often illegally at the forest edge.
+  A verb that *permanently converts land type*, distinct from harvesting from it.
+- **Transhumance / shieling** — herds moved between lowland winter pasture and high summer
+  pasture, with a hut occupied only part of the year. A seasonal building, and a settlement
+  holding both kinds of ground beats one holding twice as much of either.
+- **Lazy beds (feannagan)** — raised ridges built on rocky ground out of seaweed and turf.
+  Farming where farming should not work, at a high labor price. Makes bad land a choice.
+- **Dew pond** — a clay-lined hollow on porous high ground that gathers condensation and
+  rain. Makes streamless upland habitable.
+- **Coppice** — see its own section above.
+
+**Timing and irregularity**
+
+- **Mast year** — oak and beech drop a huge acorn crop only every few years, irregularly.
+  A resource that *spikes unpredictably* rather than accruing evenly.
+- **Pannage** — the right to turn pigs into the woods in autumn to fatten on fallen mast.
+  Free feed, but only in one season, and only under the right species. Pairs with mast
+  years into an occasional bonanza, and makes tree *species* matter.
+- **Tide mill** — a mill on the tide rather than the sun, running roughly twice a day and
+  drifting fifty minutes later each day. Intermittent production on a non-solar clock.
+
+**Same good, different recipe by place**
+
+This is the most under-used idea in the genre and the most promising.
+
+- **Salt pan vs. salt cote** — sun-evaporated brine where the climate allows; boiled over
+  fire where it does not. The same salt, nearly free in the south and fuel-hungry in the
+  north.
+- **Corn drying kiln** — in wet climates grain must be kiln-dried before it can be milled
+  or stored at all. A mandatory extra step that simply does not exist elsewhere.
+- **Sweet chestnut flour** — bread from trees where grain will not grow. A forest that
+  feeds a settlement the way a field would.
+
+**Logistics**
+
+- **Bodger** — an itinerant woodworker who turned chair legs on a pole lathe *in the wood
+  where the tree fell*, because carrying legs is lighter than carrying logs. Processing at
+  the source to cut haulage. A mobile workshop, which no building-based economy models.
+- **Ropewalk** — rope is laid at full length, so ropewalks were absurdly long narrow sheds,
+  some over 300 yards. A building with a *shape* requirement, not a footprint. Worth
+  holding until buildings have real placement rules; wasted without them.
+- **Clamp** — roots heaped under straw and earth, keeping through winter with no building
+  at all. Near-free storage that loses a steady percentage.
+
+**Nuisance and placement**
+
+- **Retting pond** — flax soaked for weeks until the stem rots off the fiber, famously foul
+  enough that towns banned it from common water. A long delayed conversion *plus* a
+  negative amenity radius: zoning emerges without a zoning system.
+- **Tannery** — wants running water, and stinks. Uses oak bark, a byproduct of felling.
+
+**Closing loops**
+
+- **Potash** — leached and boiled wood ash, for soap and glass. Every building paying the
+  firewood tax already makes ash, so the universal cost becomes an input.
+- **Tanbark** — tanning needs oak bark from felling. Logging feeds leather sideways.
+- **Hurdles and the golden hoof** — portable woven fence panels. Fold sheep onto a fallow
+  field at night, move the hurdles daily, and the flock manures the ground. The prettiest
+  available answer to farm fertility, and it arrives as a *tool* connecting herd to field.
+- **Lime kiln** — quicklime for mortar in construction **and** for sweetening sour fields.
+  One good feeding two different sinks is rare and worth a lot.
+
+**Husbandry wearing other clothes**
+
+- **Warren and pillow mound** — artificial rabbit warrens, deliberately built and tended by
+  a warrener. Looks like hunting, is actually farming.
+- **Dovecote** — pigeons for meat and, more usefully, guano. In France the right to keep
+  one was a seigneurial privilege.
+- **Staddle stones** — the mushroom-shaped stone feet a granary stands on so rats cannot
+  climb in. A granary without them quietly loses grain. Visible, charming, a real upgrade.
+
+**Jobs with a failure state**
+
+- **Charcoal burner's watch** — a collier slept beside the mound for days, because too much
+  air loses the entire burn. A job that fails if the worker walks away, which is a good
+  stress test for a villager who gets hungry.
+- **Eel bucks and fish weirs** — passive traps that catch with no worker at all.
+
+**Commons**
+
+- **Souming** — the rule limiting how many animals each household may graze on the common,
+  to stop overgrazing. A governance mechanic rather than a production one. Filed here
+  because it is the shape of a genuinely different game.
 
 ## Explicitly out of scope right now
 
