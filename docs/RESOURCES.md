@@ -287,7 +287,7 @@ Do not build the whole table. A defensible first increment:
 That exercises the three sinks, the upkeep draw, depletion-and-regrowth, and the
 data-driven recipe table without committing to soil, seasons, metal, or trade.
 
-## Parked: coppice, and settlement skill
+## Parked: practices that arrive with settlement skill
 
 Not for now, but on the roadmap and worth not designing around.
 
@@ -309,6 +309,29 @@ wagging the dog.
 So: park it. When a settlement-skill concept does exist, coppice is the first thing to
 hang off it. Until then, do not build forest state that would make the split impossible
 to add later — a single global "trees remaining" count would.
+
+Two more belong in the same parking lot, for the same reason: each is a practice a
+settlement gets *better at*, not a building it buys.
+
+**Mulberry-dike fish pond** (桑基鱼塘, Pearl River Delta). Mulberries grow on the dike,
+their leaves feed silkworms, silkworm waste feeds the fish in the pond, and pond mud is
+dredged back onto the dike to fertilize the mulberries. A four-node cycle with **no
+external input and no waste**, and it is *spatially arranged* — the dike has to adjoin the
+pond.
+
+Worth distinguishing from the loop-closing ideas elsewhere in this brief: those are all a
+byproduct being reused. This is a cycle that was **designed as a cycle**, and it is the
+strongest single argument that a mature settlement should look qualitatively different
+from a young one rather than merely bigger.
+
+**Clam gardens** (Kwakwaka'wakw, Coast Salish, Haida and other Northwest Coast peoples;
+thousands of years old and currently being restored). A rock wall built at the low tide
+line traps sediment and creates a flat terrace, and clam productivity rises sharply.
+
+Mechanically: **you build a wall and the shoreline becomes a farm.** A direct sibling to
+the fish weir, except it is husbandry rather than a trap — the weir catches what swims
+past, the garden raises more than would otherwise grow. Good fit for a game whose whole
+first slice happens on a coast.
 
 ## Parked: a reservoir of weird historical vocabulary
 
@@ -428,13 +451,12 @@ are already sitting in the resource table.
 **Commons and obligation**
 
 - **Quern** — a hand mill: two stones, turned by a person. Slow, free, needs no building,
-  and works the day a settlement is founded. A watermill is fast but built and tolled, so
-  the pair is already a decent choice on its own.
+  and works the day a settlement is founded. A watermill is faster but has to be built and
+  sited. Free-and-slow against built-and-fast is a good early choice on its own.
 
-  What makes it a story is **mill soke**: the legal obligation to grind your grain at the
-  lord's mill. Where it applied, querns were confiscated and smashed to enforce it. A
-  monopoly maintained by breaking people's tools is a far more interesting way to gate a
-  technology than making it expensive.
+  (There is a historical monopoly story attached to querns — grinding obligations, and
+  confiscation to enforce them. Deliberately left out: coercion is not the tone of this
+  game.)
 
 - **Souming** — the rule limiting how many animals each household may graze on the common,
   to stop overgrazing. A governance mechanic rather than a production one. Filed here
