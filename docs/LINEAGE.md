@@ -1,9 +1,9 @@
 # The lineage fork
 
-Status: **a forked exploration, not a decision.** This branches off [GOBLINS.md](GOBLINS.md)
-(not in this repo yet) and assumes the goblin fork is taken. It asks what happens if goblins
-are Lamarckian: shaped by their work, and able to hand that shape on. Nothing here is
-implemented. Where it says "open", do not guess — ask.
+Status: **a forked exploration, not a decision.** This branches off
+[GOBLINS.md](GOBLINS.md) and assumes the goblin fork is taken. It asks what happens if
+goblins are Lamarckian: shaped by their work, and able to hand that shape on. Nothing here
+is implemented. Where it says "open", do not guess — ask.
 
 It is written up because the idea turned out to supply something [RESOURCES.md](RESOURCES.md)
 says the design is missing — a settlement skill concept — and to give comfort, the goblin

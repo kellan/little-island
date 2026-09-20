@@ -120,7 +120,7 @@ The rulebook, the tick, the command and event vocabulary, the save format and th
 
 Where production is going — foraging, depletion, multi-input recipes, upkeep and farms, and the one abstraction that covers them — is in [docs/PRODUCTION.md](docs/PRODUCTION.md), replying to the design brief in [docs/RESOURCES.md](docs/RESOURCES.md).
 
-A forked exploration that is not a decision — goblins shaped by the work they do, elders as the only way a skill is handed on, and comfort as the thing that carries a settlement's past into its future — is in [docs/LINEAGE.md](docs/LINEAGE.md). Nothing in it is implemented.
+Two forked explorations, neither of them decisions, sit beside that brief. [docs/GOBLINS.md](docs/GOBLINS.md) asks what changes if the villagers are goblins rather than people. [docs/LINEAGE.md](docs/LINEAGE.md) branches off the goblin fork again: goblins shaped by the work they do, elders as the only way a skill is handed on, and comfort as the thing that carries a settlement's past into its future. Nothing in either is implemented.
 
 The convex mainland permits direct walking paths without navigation machinery; decorative tree foliage is not a path obstacle in this deliberately narrow prototype.
 
