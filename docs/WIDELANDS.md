@@ -62,13 +62,13 @@ Economy, and our `Job` is their Request plus Transfer.
 
 | Widelands | Little Island today | Distance |
 | --- | --- | --- |
-| Ware instance | nothing; `stockpile.stock.timber` is a count | The real work. Wares need identity and a location. |
+| Ware instance | `WarePile` on the ground (hauling rulebook) | Done, terminal only. Wares at rest are still counts in the stockpile. |
 | Warehouse | `stockpile` (one, at HOME) | Make it a list and it becomes interesting immediately. |
-| Request / Supply / Transfer | `Job` with an owner, `assign-jobs` | Already the same idea, one job kind deep. |
+| Request / Supply / Transfer | `Job` with an owner, `assign-jobs` | Two job kinds deep now: `harvest` and `haul`. |
 | Economy matching | the `plan` phase | Same slot in the tick. Priorities would go here. |
 | Production program | nothing; `chop` is a hardcoded rule | One interpreter rule plus data replaces every future "the sawmill rule". |
 | Productivity % | `stats` counters | Cheap: count completed vs failed program runs. |
-| Carrier on a road | villager walking a straight line | We have the walking; we lack the network. |
+| Carrier on a road | a `carrier` role, walking a straight line | Tried it. The network turns out to be the point — see below. |
 | Target quantity | nothing | Cheap and high value — the first real *management* verb. |
 
 ## A staged plan
@@ -104,6 +104,77 @@ rather than a Settlers one.
 **Then — target quantities.** Once there are two producers and a shared input,
 a per-ware target is the smallest possible management verb and the thing that
 makes the settlement feel like it is being *run*.
+
+## Step 1, as built
+
+Built in the terminal only (`bin/play --rules hauling`); the browser island still
+runs the `settlement` rulebook and behaves exactly as before. A felled tree now
+leaves a log where it fell, a rule notices loose wares and puts fetching them on
+the work list, and villagers have a `role` so a carrier can be forbidden an axe.
+One rule swapped, three added.
+
+```text
+> chop 22
+[00:00] #22 goes on the work list
+[00:00] Robin sets off for #22
+> until
+[00:07] #22 comes down
+[00:07] a log is left lying where it fell
+[00:07] Robin goes to fetch it
+[00:08] Robin picks up a log
+[00:11] a log reaches the clearing — timber 1
+```
+
+### What it cost
+
+Same island, same orders, same seed; time for the last log to reach the clearing.
+
+| Workers | Rulebook | 4 logs | 8 logs |
+| --- | --- | --- | --- |
+| 1 generalist | settlement | 26s (3 logs) | — |
+| 1 generalist | hauling | 27s (3 logs) | — |
+| 2 generalists | settlement | 24s | — |
+| 2 generalists | hauling | 25s | — |
+| 1 feller + 1 carrier | hauling | 41s | — |
+| 4 generalists | settlement | — | 21s |
+| 4 generalists | hauling | — | 22s |
+| 2 fellers + 2 carriers | hauling | — | 40s |
+| 3 fellers + 1 carrier | hauling | — | 59s |
+
+### What we learned
+
+- **Wares as objects are nearly free.** About a second a log: the short walk back
+  to the trunk, plus one tick for somebody to notice it. Worth paying, because it
+  is the substrate a building needs — a sawmill's planks have to land somewhere.
+- **Dedicated carriers are much worse, and that is the interesting part.** A
+  generalist never walks empty: chop, pick up at your feet, walk home. A carrier
+  walks out empty and back loaded, so a log costs three trips instead of two.
+  Specialising also halves the felling capacity at these team sizes.
+- **Which is exactly why Widelands has flags and roads.** Their carrier does not
+  fetch. A ware is set down at a flag and relayed by carriers who each own one
+  road segment and wait in the middle of it, so travel is shared infrastructure
+  rather than a personal errand. Fetch-from-anywhere is the expensive version of
+  transport, and it is what we just measured. Roads are not decoration; they are
+  what makes a carrier cheaper than a generalist.
+- **A generalist will always out-compete a specialist for nearby work**, because
+  assignment is distance-first. The first attempt at the experiment put one
+  generalist beside one carrier, and the carrier never lifted a finger — the
+  feller was always the closest pair of hands to their own log.
+- **Priority is the knob that changes the feel.** `JOB_PRIORITY` decides whether
+  fetching beats felling. Fetching first keeps the clearing tidy. Set them equal
+  and the forest fills with logs while the axe keeps swinging, which looks far
+  more like The Settlers and is a legitimate thing to want.
+
+### What this changes about the plan
+
+Do not put roles in the game yet, and do not add carriers without the network
+that makes them pay. The cosy answer stands: generalists who physically carry
+things, which is what the browser island already does.
+
+Keep the haul job kind, though. It becomes necessary rather than optional at step
+2, from the other direction: a worker who is inside a building cannot fetch their
+own inputs, so somebody has to. That is the same lesson Widelands learned,
+arrived at by building a sawmill rather than by drawing a road.
 
 ## What we would not take
 

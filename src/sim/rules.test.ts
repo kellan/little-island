@@ -19,8 +19,8 @@ describe('the one true loop', () => {
     order(world, 0);
     const events = runUntil(world, w => w.stockpile.stock.timber > 0);
 
-    expect(kinds(events)).toEqual(expect.arrayContaining(['order-queued', 'job-assigned', 'chop-swing', 'tree-felled', 'resource-delivered']));
-    expect(kinds(events).indexOf('tree-felled')).toBeLessThan(kinds(events).indexOf('resource-delivered'));
+    expect(kinds(events)).toEqual(expect.arrayContaining(['order-queued', 'job-assigned', 'chop-swing', 'tree-felled', 'ware-delivered']));
+    expect(kinds(events).indexOf('tree-felled')).toBeLessThan(kinds(events).indexOf('ware-delivered'));
     expect(findTree(world, 0)!.state).toBe('felled');
     expect(findTree(world, 0)!.reservedBy).toBeNull();
     expect(world.stats).toMatchObject({ treesFelled: 1, logsDelivered: 1, ordersQueued: 1 });

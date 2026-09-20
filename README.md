@@ -2,7 +2,7 @@
 
 A small, tactile browser settlement prototype: orbit a handmade procedural island, mark a tree, and watch Robin walk, chop, carry a log, and deliver it to the clearing. Mark several and they become a list of work.
 
-Underneath is a rule engine that knows nothing about the screen: plain JSON state, commands in, events out, eleven rules a tick. See [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
+Underneath is a rule engine that knows nothing about the screen: plain JSON state, commands in, events out, a rulebook a tick. See [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
 
 ## Local development
 
@@ -74,9 +74,16 @@ Little Island  00:00   timber 0   felled 0   standing 37
 rulebook. `trace on` narrates the engine's decisions and hides the rules that fire
 every tick for anyone walking; `trace all` shows everything.
 
-`spawn <name>` adds a villager. The engine has always allowed several; the browser
-game deliberately ships one. Economy rules will be designed here first, where a
-whole day of settlement runs in a second and the reasoning is printed.
+`spawn <name> [role]` adds a villager, and `role <name> <role>` retrains one. The
+engine has always allowed several; the browser game deliberately ships one.
+
+`bin/play --rules hauling` runs the economy experiment instead of the browser's
+rules: a felled tree leaves a log on the ground, and fetching it is a job of its
+own. `wares` shows the stockpile and what is still lying about, `drop stone 3`
+leaves something to fetch, and `rulebook <id>` swaps the rules mid-session
+without touching the island. What that experiment measured, and why dedicated
+carriers turned out to be a bad deal without roads, is written up in
+[docs/WIDELANDS.md](docs/WIDELANDS.md).
 
 ## Architecture
 
@@ -109,7 +116,7 @@ The convex mainland permits direct walking paths without navigation machinery; d
 
 ## Scope and next-step notes
 
-One villager, finite trees, one timber stockpile, one kind of job. The engine is not limited to that: villagers are a list, jobs have owners and a `kind`, and the scale test runs 120 of them. The game deliberately does not. No buildings, needs, production chains, pathfinding, regrowth or time of day — the shape each of those would take is noted at the end of [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md). The simulation persists data, not Three.js objects. Saves from the first iteration are not loadable; a fresh island appears instead. Inspiration: Outlanders 2 and The Settlers 2 for calm readable work, Timberborn for physical resource movement, Widelands for economic concepts, SlimCity for web architecture, and Three.js Game for small examples. No source code or art is copied from those games. Widelands is the one we can read rather than infer: [docs/WIDELANDS.md](docs/WIDELANDS.md) works through its economy, what maps onto this engine, and the licensing line we do not cross.
+One villager, finite trees, one timber stockpile, one kind of job. The engine is not limited to that: villagers are a list, jobs have owners and a `kind`, and the scale test runs 120 of them. The game deliberately does not. No buildings, needs, production chains, pathfinding, regrowth or time of day — the shape each of those would take is noted at the end of [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md). The simulation persists data, not Three.js objects. The save format is at version 3; older saves are refused and a fresh island appears instead. Inspiration: Outlanders 2 and The Settlers 2 for calm readable work, Timberborn for physical resource movement, Widelands for economic concepts, SlimCity for web architecture, and Three.js Game for small examples. No source code or art is copied from those games. Widelands is the one we can read rather than infer: [docs/WIDELANDS.md](docs/WIDELANDS.md) works through its economy, what maps onto this engine, and the licensing line we do not cross.
 
 ## Technical proving ground
 

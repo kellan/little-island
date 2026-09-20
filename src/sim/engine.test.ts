@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import rulebookDoc from '../../docs/RULE_ENGINE.md?raw';
-import { PHASES, RULES } from './rules.ts';
+import { PHASES, RULEBOOKS, RULES } from './rules.ts';
 import { advance, alpha, createSimulation, enqueue, tick, tickTimes } from './engine.ts';
 import { createWorld, elapsedSeconds, hashWorld } from './world.ts';
 import { deserialize, serialize } from './serialize.ts';
@@ -9,16 +9,22 @@ import type { SimEvent } from './types.ts';
 
 const kinds = (events: SimEvent[]) => events.map(event => event.kind);
 
-describe('rulebook', () => {
-  it('has unique ids and runs strictly in phase order', () => {
-    expect(new Set(RULES.map(rule => rule.id)).size).toBe(RULES.length);
-    const order = RULES.map(rule => PHASES.indexOf(rule.phase));
-    expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(RULES.every(rule => rule.about.length > 10)).toBe(true);
+describe('rulebooks', () => {
+  it('each have unique ids and run strictly in phase order', () => {
+    expect(RULEBOOKS.map(book => book.id)).toContain('settlement');
+    for (const book of RULEBOOKS) {
+      expect(new Set(book.rules.map(rule => rule.id)).size).toBe(book.rules.length);
+      const order = book.rules.map(rule => PHASES.indexOf(rule.phase));
+      expect(order).toEqual([...order].sort((a, b) => a - b));
+      expect(book.rules.every(rule => rule.about.length > 10)).toBe(true);
+    }
+    expect(RULES).toEqual(RULEBOOKS[0].rules);
   });
 
-  it('is written down: every rule appears in the documentation', () => {
-    for (const rule of RULES) expect(rulebookDoc).toContain(`| ${rule.phase} | \`${rule.id}\``);
+  it('are written down: every rule in every book appears in the documentation', () => {
+    for (const book of RULEBOOKS) {
+      for (const rule of book.rules) expect(rulebookDoc).toContain(`| ${rule.phase} | \`${rule.id}\``);
+    }
   });
 });
 
@@ -73,7 +79,7 @@ describe('determinism', () => {
     const first = run(), second = run();
     expect(second.hash).toBe(first.hash);
     expect(JSON.stringify(second.events)).toBe(JSON.stringify(first.events));
-    expect(kinds(first.events)).toContain('resource-delivered');
+    expect(kinds(first.events)).toContain('ware-delivered');
   });
 });
 
@@ -109,7 +115,7 @@ describe('persistence', () => {
     for (const raw of broken) expect(deserialize(raw)).toBeNull();
 
     const dangling = createWorld();
-    dangling.jobs.push({ id: 9, kind: 'harvest', treeId: 999, state: 'queued', assignee: null, createdTick: 0, finishedTick: null });
+    dangling.jobs.push({ id: 9, kind: 'harvest', treeId: 999, state: 'queued', assignee: null, priority: 0, createdTick: 0, finishedTick: null });
     expect(deserialize(serialize(dangling))).toBeNull();
 
     const badActivity = createWorld();

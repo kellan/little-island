@@ -13,8 +13,9 @@
 import { createInterface } from 'node:readline';
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
-  HOME, RULES, addVillager, createSimulation, createWorld, deserialize, enqueue, findTree,
-  hashWorld, jobForTree, serialize, tickTimes, tuning, type SimEvent, type World,
+  HAULING, HOME, RULEBOOKS, addVillager, createSimulation, createWorld, deserialize, dropWare,
+  enqueue, hashWorld, ROLES, serialize, tickTimes, tuning, WARES,
+  type Role, type Rulebook, type SimEvent, type WareId, type World,
 } from '../sim/index.ts';
 import * as view from './view.ts';
 
@@ -37,7 +38,8 @@ const asked = Number(option('--seed'));
 const seed = Number.isFinite(asked) ? asked : tuning.ISLAND_SEED;
 const loaded = option('--load') ? load(option('--load')!) : null;
 if (option('--load') && !loaded) say(paint.warn(`could not read a world from ${option('--load')}`));
-const sim = createSimulation(loaded ?? createWorld(seed));
+const chosen = RULEBOOKS.find(book => book.id === option('--rules')) ?? HAULING;
+const sim = createSimulation(loaded ?? createWorld(seed), chosen);
 const origin = loaded ? 'a saved island' : `seed ${seed}`;
 
 const seconds = (text: string | undefined, fallback: number) => {
@@ -57,8 +59,11 @@ function run(count: number): SimEvent[] {
   const collected: SimEvent[] = [];
   for (let i = 0; i < count; i++) {
     const steps: string[] = [];
-    const events = tickTimes(sim.world, 1, tracing === 'off' ? undefined : (step) => {
-      if (tracing === 'all' || step.phase !== 'act') steps.push(view.renderTraceStep(step, paint));
+    const events = tickTimes(sim.world, 1, {
+      rules: sim.rulebook.rules,
+      trace: tracing === 'off' ? undefined : (step) => {
+        if (tracing === 'all' || step.phase !== 'act') steps.push(view.renderTraceStep(step, paint));
+      },
     });
     if (tracing === 'off') { collected.push(...events); continue; }
     if (steps.length) say(`  ${paint.dim(`tick ${sim.world.tick}`)}\n${steps.join('\n')}`);
@@ -81,9 +86,11 @@ function settle(): void {
   report(run(1));
 }
 
+/** Work still to do: a job open, a ware in someone's arms, or one lying about. */
 function outstanding(world: World): boolean {
   return world.jobs.some(job => job.state === 'queued' || job.state === 'assigned')
     || world.villagers.some(villager => villager.carrying !== null)
+    || world.piles.length > 0
     || world.inbox.length > 0;
 }
 
@@ -143,12 +150,51 @@ const commands: Record<string, Command> = {
       tracing = was;
     },
   },
-  rules: { about: 'the rulebook, in the order it runs', run: () => say(view.renderRules(RULES, paint)) },
-  spawn: {
-    about: 'spawn [name] — another pair of hands (the engine allows it, the game does not)',
+  rules: {
+    about: 'the rulebook this island runs, in order',
+    run: () => {
+      say(`  ${paint.bold(sim.rulebook.id)}  ${paint.dim(sim.rulebook.about)}`);
+      say(view.renderRules(sim.rulebook.rules, paint));
+    },
+  },
+  rulebook: {
+    about: `rulebook [${RULEBOOKS.map(book => book.id).join('|')}] — swap the rules under the same island`,
     run: (args) => {
-      const villager = addVillager(sim.world, args[0] ?? `Villager ${sim.world.nextVillagerId}`, HOME);
-      say(`  ${villager.name} arrives at the clearing`);
+      if (!args.length) return say(`  ${paint.bold(sim.rulebook.id)}  ${paint.dim(sim.rulebook.about)}`);
+      const next: Rulebook | undefined = RULEBOOKS.find(book => book.id === args[0]);
+      if (!next) return say(paint.warn(`  no rulebook called ${args[0]}`));
+      sim.rulebook = next;
+      say(`  now running ${paint.bold(next.id)}  ${paint.dim(next.about)}`);
+      if (next.id === 'settlement' && sim.world.piles.length) say(paint.dim('  (nothing in these rules fetches a ware off the ground, so what is lying about stays lying about)'));
+    },
+  },
+  wares: { about: 'what is in the stockpile, and what is still lying about', run: () => say(view.renderWares(sim.world, paint)) },
+  drop: {
+    about: `drop [${WARES.join('|')}] [n] — leave a ware at the villager's feet, to see who fetches it`,
+    run: (args) => {
+      const ware = (WARES.includes(args[0] as WareId) ? args[0] : 'stone') as WareId;
+      const amount = Math.min(20, Math.max(1, Math.round(Number(args[1]) || 1)));
+      const at = sim.world.villagers[0] ?? HOME;
+      const pile = dropWare(sim.world, ware, at, amount);
+      say(`  ${view.wareName(pile.ware, pile.amount)} left at ${pile.x.toFixed(1)}, ${pile.z.toFixed(1)}`);
+    },
+  },
+  role: {
+    about: `role <name> [${ROLES.join('|')}] — retrain somebody, to see what specialising costs`,
+    run: (args) => {
+      const villager = sim.world.villagers.find(person => person.name.toLowerCase() === (args[0] ?? '').toLowerCase());
+      if (!villager) return say(paint.warn(`  nobody here is called ${args[0] ?? 'that'}`));
+      if (!ROLES.includes(args[1] as Role)) return say(`  ${villager.name} is a ${villager.role}`);
+      villager.role = args[1] as Role;
+      say(`  ${villager.name} is now a ${villager.role}`);
+    },
+  },
+  spawn: {
+    about: `spawn [name] [${ROLES.join('|')}] — another pair of hands; a feller never carries, a carrier never chops`,
+    run: (args) => {
+      const role = (ROLES.includes(args[1] as Role) ? args[1] : 'hand') as Role;
+      const villager = addVillager(sim.world, args[0] ?? `Villager ${sim.world.nextVillagerId}`, HOME, role);
+      say(`  ${villager.name} arrives at the clearing${role === 'hand' ? '' : ` as a ${role}`}`);
     },
   },
   save: {
@@ -196,7 +242,8 @@ function perform(line: string): void {
 
 say();
 say(`${paint.bold('Little Island')} ${paint.dim(`— a settlement you type at. seed ${sim.world.seed}, ${sim.world.trees.length} trees.`)}`);
-say(paint.dim('help for commands. trees, then chop 0, then until.'));
+say(paint.dim(`help for commands. trees, then chop 0, then until.`));
+say(paint.dim(`rules: ${sim.rulebook.id} \u2014 ${sim.rulebook.about}`));
 say();
 say(view.renderMap(sim.world, paint));
 say();

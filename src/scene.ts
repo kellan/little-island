@@ -175,9 +175,9 @@ export class IslandScene {
     }
 
     // A ring on every tree with an order against it, plus one under the cursor.
-    const ordered = world.jobs.filter(job => job.state === 'queued' || job.state === 'assigned');
+    const ordered = world.jobs.flatMap(job => job.kind === 'harvest' && (job.state === 'queued' || job.state === 'assigned') ? [job.treeId] : []);
     this.orderRings.forEach((ring, index) => {
-      const tree = ordered[index] && world.trees.find(t => t.id === ordered[index].treeId);
+      const tree = index < ordered.length ? world.trees.find(t => t.id === ordered[index]) : undefined;
       ring.visible = !!tree && tree.state === 'standing';
       if (tree) { ring.position.set(tree.x, elevation(tree.x, tree.z) + .04, tree.z); ring.scale.setScalar(1 + Math.sin(realTime * 4 + index) * .04); }
     });

@@ -88,7 +88,7 @@ function react(events:SimEvent[]){
     else if(event.kind==='order-rejected')toast(REJECTIONS[event.reason]);
     else if(event.kind==='chop-swing')note(150,.05);
     else if(event.kind==='tree-felled')note(196,.22);
-    else if(event.kind==='resource-delivered'){note(659,.25);toast(event.total===1?'Your first log. Every little world starts somewhere.':`+1 timber · ${event.total} in the pile`);save();}
+    else if(event.kind==='ware-delivered'){note(659,.25);toast(event.total===1?'Your first log. Every little world starts somewhere.':`+1 timber · ${event.total} in the pile`);save();}
   }
 }
 

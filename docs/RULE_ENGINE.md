@@ -41,21 +41,40 @@ in the rest of the codebase needs to know it exists.
 Every tick is the same five phases in the same order, and inside a phase the
 rules run in the order they are listed. That ordering is the whole scheduler.
 
-| Phase | Rule | What it does |
-| --- | --- | --- |
-| intake | `accept-commands` | Applies the orders the player queued since the last tick, one at a time, in order. |
-| plan | `drop-impossible-jobs` | Cancels any job whose tree has vanished or already fallen, freeing its worker. |
-| plan | `assign-jobs` | Gives the oldest queued job to the nearest villager with free hands. |
-| act | `walk` | Moves a travelling villager toward their destination and turns them to face it. |
-| act | `chop` | Advances a chop and emits one swing event per axe stroke, so sound and dust follow the work. |
-| resolve | `arrive-at-tree` | Turns a walk into work once the villager is within arm's reach of their tree. |
-| resolve | `fell-tree` | Drops the tree when the chop completes and puts a log in the villager's arms. |
-| resolve | `store-delivery` | Adds a carried log to the stockpile the moment the villager reaches the clearing. |
-| resolve | `finish-roaming` | Ends a wander at its destination and buys the villager a moment of rest. |
-| upkeep | `wander-when-idle` | Sends a rested, jobless villager on a short stroll near the clearing, so nobody stands frozen. |
-| upkeep | `forget-finished-jobs` | Prunes done and cancelled jobs a second after they end, keeping saved state small. |
+| Phase | Rule | Book | What it does |
+| --- | --- | --- | --- |
+| intake | `accept-commands` | both | Applies the orders the player queued since the last tick, one at a time, in order. |
+| plan | `drop-impossible-jobs` | both | Cancels any job whose tree or ware has gone, freeing whoever was sent for it. |
+| plan | `list-loose-wares` | hauling | Notices a ware lying on the ground and adds fetching it to the work list. |
+| plan | `assign-jobs` | both | Hands the most pressing queued job to the nearest free villager whose role takes that work. |
+| act | `walk` | both | Moves a travelling villager toward their destination and turns them to face it. |
+| act | `chop` | both | Advances a chop and emits one swing event per axe stroke, so sound and dust follow the work. |
+| resolve | `arrive-at-tree` | both | Turns a walk into work once the villager is within arm's reach of their tree. |
+| resolve | `fell-tree` | settlement | Drops the tree when the chop completes and puts a log in the villager's arms. |
+| resolve | `fell-tree-to-ground` | hauling | Drops the tree when the chop completes and leaves a log lying where it fell. |
+| resolve | `collect-ware` | hauling | Picks a ware up off the ground and sets off for the stockpile with it. |
+| resolve | `store-delivery` | both | Adds a carried ware to the stockpile the moment the villager reaches the clearing. |
+| resolve | `finish-roaming` | both | Ends a wander at its destination and buys the villager a moment of rest. |
+| upkeep | `wander-when-idle` | both | Sends a rested villager with nothing left to do on a short stroll near the clearing. |
+| upkeep | `forget-finished-jobs` | both | Prunes done and cancelled jobs a second after they end, keeping saved state small. |
 
-That is the entire game so far: eleven rules, one resource, one kind of job.
+## Two rulebooks
+
+A rulebook is an ordered list of rules and nothing else, so an experiment is a
+second list rather than a second codebase.
+
+- **`SETTLEMENT`** is what the browser island runs. One villager sees a job
+  through: walk, chop, carry the log home.
+- **`HAULING`** is the economy experiment, reachable only from the terminal
+  (`bin/play --rules hauling`). A felled tree leaves a log on the ground; noticing
+  it and fetching it are separate work, which is how a building's output will
+  reach a stockpile later.
+
+They differ by one rule swapped and three added. `bin/play` can switch between
+them mid-session with `rulebook <id>`, which is the clearest demonstration that
+rules are data: the island does not change, only what happens on it.
+
+That is the entire game so far: fourteen rules across two rulebooks, two wares, two kinds of job.
 
 ## Watching it think
 
@@ -99,7 +118,7 @@ for (const event of advance(sim, deltaSeconds)) {
 
 | Commands | Events |
 | --- | --- |
-| `order-harvest` · `cancel-harvest` · `cancel-all` | `order-queued` · `order-rejected` · `order-cancelled` · `job-assigned` · `job-abandoned` · `chop-swing` · `tree-felled` · `resource-delivered` |
+| `order-harvest` · `cancel-harvest` · `cancel-all` | `order-queued` · `order-rejected` · `order-cancelled` · `job-assigned` · `job-abandoned` · `chop-swing` · `tree-felled` · `ware-dropped` · `ware-collected` · `ware-delivered` |
 
 Every rejection carries a reason, so the interface can explain itself without
 re-deriving the rules: `unknown-tree`, `already-felled`, `already-ordered`,
@@ -157,6 +176,6 @@ Things that came up while building this and were deliberately left out:
   and empty. Obstacles, roads, or water crossings mean a path in the `plan` phase
   and a follow rule in `act`; nothing else would move.
 - **Tree regrowth and seasons.** There is no world clock beyond `tick`.
-- **Rule conflicts.** With eleven rules, order is enough. If two rules ever want
+- **Rule conflicts.** At this size, order is enough. If two rules ever want
   the same villager in the same tick, that is the moment to add priorities or a
   proper agenda rather than hope.

@@ -11,8 +11,9 @@ export const WALK_SPEED = 2.3;
 export const CARRY_SPEED = 1.95;
 export const ROAM_SPEED = .48;
 
-/** How close a villager stands to work on a tree, and to drop a log at the clearing. */
+/** How close a villager stands to work on a tree, to pick a ware up, and to drop it home. */
 export const TREE_REACH = .85;
+export const PILE_REACH = .3;
 export const STOCKPILE_REACH = .35;
 
 /** Seconds to fell an average tree; bigger trunks take proportionally longer. */
@@ -24,6 +25,13 @@ export const ROAM_RADIUS = 1.6;
 
 /** Orders a player may stack up per pair of hands, before the queue politely declines. */
 export const MAX_JOBS_PER_VILLAGER = 12;
+
+/**
+ * Higher goes first when work is handed out. Fetching beats felling so that logs
+ * come home as they are made; set them equal and the forest fills with loose wares
+ * while the axe keeps swinging, which is a different and more Settlers-ish game.
+ */
+export const JOB_PRIORITY = { haul: 10, harvest: 0 } as const;
 
 /** Finished jobs linger this long so the host can notice them, then are pruned. */
 export const JOB_HISTORY_SECONDS = 1;
