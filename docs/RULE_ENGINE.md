@@ -25,12 +25,13 @@ One noun per idea, used the same way in the code, the terminal and these docs.
 | **ware** | a thing that can be carried and stored: a **log**, a **stone** |
 | **tree** | a resource standing in the world; felling one yields a log |
 | **pile** | a ware lying on the ground where it was dropped |
-| **building** | a place that gives out work and stores wares; so far, a **lumberjack hut** |
+| **building** | a place that gives out work and stores wares: a **lumberjack hut**, a **sawmill** |
+| **recipe** | what a building turns inputs into, declared as data: a log becomes a plank |
 | **worker** | a villager assigned to a building |
 | **job** | one piece of work with an owner. Kinds: **fell**, **haul** |
 | **activity** | what a villager is doing this tick: idle, travel, chop |
 | **stock**, **capacity** | what a building holds, and the limit that stops its work |
-| **tool** | what a worker picks up at their building to start the day: an **axe** |
+| **tool** | what a worker picks up at their building to start the day: an **axe**, a **saw** |
 
 Not used, to keep this honest: *task* (it is a job), *resource* for a carried
 thing (it is a ware), *harvest* (a tree is **felled**; the action is **chopping**).
@@ -64,22 +65,28 @@ rules run in the order they are listed. That ordering is the whole scheduler.
 | --- | --- | --- | --- |
 | intake | `accept-commands` | all | Applies the orders the player queued since the last tick, one at a time, in order. |
 | plan | `drop-impossible-jobs` | all | Cancels any job whose tree or ware has gone, freeing whoever was sent for it. |
-| plan | `clock-on` | lumberjack | Sends a villager with a workplace and no tool to their building to start the day. |
-| plan | `hut-picks-a-tree` | lumberjack | A lumberjack hut with room in its store sends its worker to the nearest tree in range. |
-| plan | `list-loose-wares` | hauling, lumberjack | Notices a ware lying on the ground and adds fetching it to the work list. |
+| plan | `clock-on` | village | Sends a villager with a workplace and no tool to their building to start the day. |
+| plan | `fetch-inputs` | village | A building short of an input asks for one from whichever building has a spare. |
+| plan | `start-crafting` | village | Sets a worker to their building's recipe once the inputs are in and there is room for the output. |
+| plan | `hut-picks-a-tree` | village | A lumberjack hut with room in its store sends its worker to the nearest tree in range. |
+| plan | `list-loose-wares` | hauling, village | Notices a ware lying on the ground and adds fetching it to the work list. |
 | plan | `assign-jobs` | all | Hands the most pressing queued job to the nearest free villager whose role takes that work. |
 | act | `walk` | all | Moves a travelling villager toward their destination and turns them to face it. |
 | act | `chop` | all | Advances a chop and emits one swing event per axe stroke, so sound and dust follow the work. |
-| resolve | `take-tool` | lumberjack | Hands the villager the axe kept at their building; the working day starts here. |
+| act | `craft` | village | Advances the work at a bench: a recipe takes as long as it takes. | Advances a chop and emits one swing event per axe stroke, so sound and dust follow the work. |
+| resolve | `take-tool` | village | Hands the villager the axe kept at their building; the working day starts here. |
 | resolve | `arrive-at-tree` | all | Turns a walk into work once the villager is within arm's reach of their tree. |
 | resolve | `fell-tree` | settlement | Drops the tree when the chop completes and puts a log in the villager's arms. |
-| resolve | `fell-tree-to-ground` | hauling, lumberjack | Drops the tree when the chop completes and leaves a log lying where it fell. |
-| resolve | `collect-ware` | hauling, lumberjack | Picks a ware up off the ground and sets off for the stockpile with it. |
-| resolve | `store-in-building` | lumberjack | Puts a carried ware into the worker's own building, up to its capacity. |
+| resolve | `fell-tree-to-ground` | hauling, village | Drops the tree when the chop completes and leaves a log lying where it fell. |
+| resolve | `collect-ware` | hauling, village | Picks a ware up off the ground and sets off for the stockpile with it. |
+| resolve | `collect-from-store` | village | Takes a ware out of one building's store and sets off for the building that asked. |
+| resolve | `store-in-building` | village | Puts a carried ware into the worker's own building, up to its capacity. |
 | resolve | `store-delivery` | all | Adds a carried ware to the stockpile the moment the villager reaches the clearing. |
+| resolve | `finish-crafting` | village | Turns the inputs into the output when the recipe finishes, and puts it in the store. |
 | resolve | `finish-roaming` | all | Ends a wander at its destination and buys the villager a moment of rest. |
 | upkeep | `wander-when-idle` | all | Sends a rested villager with nothing left to do on a short stroll near the clearing. |
-| upkeep | `new-day` | lumberjack | Turns the day over; tools stay at the building, so everyone clocks on again. |
+| upkeep | `note-shortage` | village | Records what a building is waiting for, so a stalled workshop says why. |
+| upkeep | `new-day` | village | Turns the day over; tools stay at the building, so everyone clocks on again. |
 | upkeep | `forget-finished-jobs` | all | Prunes done and cancelled jobs a second after they end, keeping saved state small. |
 
 ## Two rulebooks
@@ -92,16 +99,17 @@ second list rather than a second codebase.
 - **`HAULING`** is the first economy experiment, reachable only from the terminal
   (`bin/play --rules hauling`). A felled tree leaves a log on the ground; noticing
   it and fetching it are separate work.
-- **`LUMBERJACK`** is where the work comes from a building instead of from the
-  player. It is what `bin/play` runs by default: a villager assigned to a
+- **`VILLAGE`** is where the work comes from buildings instead of from the
+  player. It is what `bin/play` runs by default. A villager assigned to a
   lumberjack hut clocks on, takes the axe, fells the nearest tree in range, hauls
-  the log back, and stops when the store is full.
+  the log back, and stops when the store is full. A sawmill asks the hut for logs
+  and turns them into planks, and says so when it has none.
 
-`HAULING` differs from `SETTLEMENT` by one rule swapped and three added; `LUMBERJACK` adds five more. `bin/play` can switch between
+`HAULING` differs from `SETTLEMENT` by one rule swapped and three added; `VILLAGE` adds ten more. `bin/play` can switch between
 them mid-session with `rulebook <id>`, which is the clearest demonstration that
 rules are data: the island does not change, only what happens on it.
 
-That is the entire game so far: nineteen rules across three rulebooks, two wares, two kinds of job.
+That is the entire game so far: twenty-four rules across three rulebooks, three wares, three kinds of job, two kinds of building.
 
 ## Watching it think
 
@@ -137,7 +145,7 @@ come back.
 
 ```ts
 const sim = createSimulation();
-enqueue(sim, { kind: 'order-harvest', treeId: 12 });
+enqueue(sim, { kind: 'order-fell', treeId: 12 });
 for (const event of advance(sim, deltaSeconds)) {
   if (event.kind === 'chop-swing') playAxeSound();
 }
@@ -145,7 +153,7 @@ for (const event of advance(sim, deltaSeconds)) {
 
 | Commands | Events |
 | --- | --- |
-| `order-harvest` · `cancel-harvest` · `cancel-all` | `order-queued` · `order-rejected` · `order-cancelled` · `job-assigned` · `job-abandoned` · `chop-swing` · `tree-felled` · `ware-dropped` · `ware-collected` · `ware-delivered` |
+| `order-fell` · `cancel-fell` · `cancel-all` | **work:** `order-queued` · `order-rejected` · `order-cancelled` · `job-assigned` · `job-abandoned` · `supply-asked` · `chop-swing` · `shift-started` · `day-begins` · `waiting-for` · `store-full`<br>**wares:** `tree-felled` · `ware-gathered` · `ware-dropped` · `ware-collected` · `ware-taken` · `ware-stored` · `ware-delivered` · `ware-used` · `ware-made` |
 
 Every rejection carries a reason, so the interface can explain itself without
 re-deriving the rules: `unknown-tree`, `already-felled`, `already-ordered`,
@@ -153,6 +161,14 @@ re-deriving the rules: `unknown-tree`, `already-felled`, `already-ordered`,
 
 Events are the reason the host does not diff state. A delivery sound plays
 because a delivery happened, not because a number went up between two frames.
+They also have to carry their own numbers: an event that says "a plank was made"
+and leaves the reader to look up the current stock will report whatever the stock
+is when the line is finally printed, which is a bug we shipped and then caught.
+
+Three events create a ware — `ware-gathered`, `ware-dropped`, `ware-made` — and
+one destroys one, `ware-used`. Everything else only moves wares about. That is
+what makes the ledger in `invariants.ts` possible, and it is checked after every
+tick of the soak test.
 
 ## Time
 

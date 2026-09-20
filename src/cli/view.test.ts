@@ -61,6 +61,7 @@ describe('the island in text', () => {
       'Robin sets off for #0',
       expect.stringMatching(/^Robin swings the axe \u00d7\d+$/),
       '#0 comes down',
+      'Robin shoulders a log',
       'a log reaches the clearing \u2014 log 1',
     ]);
   });

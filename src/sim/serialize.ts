@@ -4,9 +4,9 @@
  * malformed world must never reach the rules. Invalid input returns null, and the
  * caller starts a fresh island rather than crashing on tick one.
  */
-import { ROLES, WARES, type Activity, type Building, type Command, type Job, type Tree, type Villager, type WarePile, type World } from './types.ts';
+import { ROLES, TOOLS, WARES, type Activity, type Building, type Command, type Job, type Tree, type Villager, type WarePile, type World } from './types.ts';
 
-const FORMAT_VERSION = 4;
+const FORMAT_VERSION = 5;
 const MAX_TREES = 400;
 const MAX_VILLAGERS = 64;
 const MAX_JOBS = 256;
@@ -28,6 +28,7 @@ function validActivity(activity: Activity | undefined): boolean {
       && ['clock-on', 'fell', 'fetch', 'deliver', 'roam'].includes(activity.purpose);
   }
   if (activity.kind === 'chop') return finite(activity.treeId, activity.progress, activity.duration) && activity.duration > 0;
+  if (activity.kind === 'craft') return finite(activity.buildingId, activity.progress, activity.duration) && activity.duration > 0;
   return false;
 }
 
@@ -43,7 +44,7 @@ function validVillager(villager: Villager): boolean {
     && typeof villager.name === 'string' && villager.name.length <= 40
     && ROLES.includes(villager.role)
     && (villager.workplace === null || finite(villager.workplace))
-    && (villager.tool === null || villager.tool === 'axe')
+    && (villager.tool === null || TOOLS.includes(villager.tool))
     && validActivity(villager.activity)
     && (villager.jobId === null || finite(villager.jobId))
     && (villager.carrying === null
@@ -51,6 +52,13 @@ function validVillager(villager: Villager): boolean {
 }
 
 function validJob(job: Job): boolean {
+  if (job?.kind === 'supply') {
+    return finite(job.id, job.createdTick, job.priority, job.from, job.to) && WARES.includes(job.ware)
+      && ['queued', 'assigned', 'done', 'cancelled'].includes(job.state)
+      && (job.assignee === null || finite(job.assignee))
+      && (job.finishedTick === null || finite(job.finishedTick));
+  }
+  if (job?.kind === 'haul' && !(job.to === null || finite(job.to))) return false;
   const target = job?.kind === 'fell' ? job.treeId : job?.kind === 'haul' ? job.pileId : undefined;
   return finite(job.id, job.createdTick, job.priority, target)
     && ['queued', 'assigned', 'done', 'cancelled'].includes(job.state)
@@ -60,14 +68,20 @@ function validJob(job: Job): boolean {
 
 function validBuilding(building: Building): boolean {
   return finite(building.id, building.x, building.z, building.radius)
-    && building.kind === 'lumberjack-hut'
+    && (building.kind === 'lumberjack-hut' || building.kind === 'sawmill')
     && counter(building.capacity) && building.capacity > 0
     && (building.workerId === null || finite(building.workerId))
+    && TOOLS.includes(building.tool)
+    && (building.waiting === null || WARES.includes(building.waiting))
+    && !!building.wants && Object.entries(building.wants).every(([ware, want]) => WARES.includes(ware as never) && counter(want))
+    && (building.recipe === null || (finite(building.recipe.seconds, building.recipe.consumes.amount, building.recipe.produces.amount)
+      && WARES.includes(building.recipe.consumes.ware) && WARES.includes(building.recipe.produces.ware)))
     && !!building.stock && WARES.every(ware => counter(building.stock[ware]));
 }
 
 function validPile(pile: WarePile): boolean {
   return finite(pile.id, pile.x, pile.z)
+    && (pile.destination === null || finite(pile.destination))
     && WARES.includes(pile.ware)
     && counter(pile.amount) && pile.amount > 0
     && (pile.reservedBy === null || finite(pile.reservedBy));
@@ -100,6 +114,7 @@ export function deserialize(raw: string): World | null {
   if (!world.stats || !counter(world.stats.treesFelled) || !counter(world.stats.logsDelivered) || !counter(world.stats.ordersQueued)) return null;
 
   // Referential integrity: a dangling id would send a rule looking for something that is not there.
+  const buildingIds = new Set(world.buildings.map(building => building.id));
   const treeIds = new Set(world.trees.map(tree => tree.id));
   const villagerIds = new Set(world.villagers.map(villager => villager.id));
   const jobIds = new Set(world.jobs.map(job => job.id));
@@ -108,16 +123,22 @@ export function deserialize(raw: string): World | null {
   if (jobIds.size !== world.jobs.length || pileIds.size !== world.piles.length) return null;
   if (world.trees.some(tree => tree.reservedBy !== null && !villagerIds.has(tree.reservedBy))) return null;
   if (world.piles.some(pile => pile.reservedBy !== null && !villagerIds.has(pile.reservedBy))) return null;
-  const buildingIds = new Set(world.buildings.map(building => building.id));
-  if (buildingIds.size !== world.buildings.length) return null;
+  if (world.piles.some(pile => pile.destination !== null && !buildingIds.has(pile.destination))) return null;
+  if (new Set(world.buildings.map(building => building.id)).size !== world.buildings.length) return null;
   if (world.buildings.some(building => building.workerId !== null && !villagerIds.has(building.workerId))) return null;
   if (world.villagers.some(villager => villager.workplace !== null && !buildingIds.has(villager.workplace))) return null;
   // Only live jobs must point at something: a finished haul names a pile that has
   // been picked up, which is history rather than a dangling reference.
   const liveJobs = world.jobs.filter(job => job.state === 'queued' || job.state === 'assigned');
-  if (liveJobs.some(job => !(job.kind === 'fell' ? treeIds.has(job.treeId) : pileIds.has(job.pileId)))) return null;
+  // A haul already in somebody's arms has no pile left to name, which is fine.
+  const carrying = new Set(world.villagers.filter(villager => villager.carrying).map(villager => villager.id));
+  const targetExists = (job: Job) => job.kind === 'fell' ? treeIds.has(job.treeId)
+    : job.kind === 'haul' ? pileIds.has(job.pileId) || (job.assignee !== null && carrying.has(job.assignee))
+    : buildingIds.has(job.from) && buildingIds.has(job.to);
+  if (liveJobs.some(job => !targetExists(job))) return null;
   if (world.jobs.some(job => job.assignee !== null && !villagerIds.has(job.assignee))) return null;
   if (world.villagers.some(villager => villager.jobId !== null && !jobIds.has(villager.jobId))) return null;
   if (world.villagers.some(v => v.activity.kind === 'chop' && !treeIds.has(v.activity.treeId))) return null;
+  if (world.villagers.some(v => v.activity.kind === 'craft' && !buildingIds.has(v.activity.buildingId))) return null;
   return world;
 }

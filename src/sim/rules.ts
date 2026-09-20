@@ -18,11 +18,11 @@ import {
   MAX_JOBS_PER_VILLAGER, PILE_REACH, REST_SECONDS, ROAM_RADIUS, ROAM_SPEED, STOCKPILE_REACH,
   SWINGS_PER_SECOND, TREE_REACH, WALK_SPEED,
 } from './tuning.ts';
-import { accepts, type Building, type EmittedEvent, type Job, type Tree, type TravelPurpose, type Villager, type WarePile, type World } from './types.ts';
+import { accepts, type Building, type WareId, type EmittedEvent, type Job, type Tree, type TravelPurpose, type Villager, type WarePile, type World } from './types.ts';
 import {
-  activeJobs, dropWare, findBuilding, findJob, findPile, findTree, findVillager, hasRoom,
-  heldIn, idleVillagers, jobForTree, loosePiles, openJobs, secondsToTicks, standingTrees,
-  workplaceOf,
+  activeJobs, canCraft, dropWare, findBuilding, findJob, findPile, findTree, findVillager,
+  hasRoom, heldIn, idleVillagers, jobForTree, loosePiles, openJobs, secondsToTicks, shortOf,
+  spare, standingTrees, workplaceOf,
 } from './world.ts';
 
 /** Phases run in this order, every tick, always. */
@@ -85,13 +85,28 @@ const choppers = (world: World) => world.villagers.filter(v => v.activity.kind =
 const liveJobs = (world: World) => world.jobs.filter(job => job.state === 'queued' || job.state === 'assigned');
 /** Free hands. Somebody who works at a building needs their tool before anything else. */
 const available = (world: World) => idleVillagers(world).filter(v => v.workplace === null || v.tool !== null);
-const targetOf = (job: Job) => job.kind === 'fell' ? job.treeId : job.pileId;
+const targetOf = (job: Job) => job.kind === 'fell' ? job.treeId : job.kind === 'haul' ? job.pileId : job.from;
+
+/** Where a carried ware is headed: the building that asked, or the carrier's own. */
+function deliveryTarget(world: World, villager: Villager): Building | undefined {
+  const job = findJob(world, villager.jobId);
+  if (job?.kind === 'supply') return findBuilding(world, job.to);
+  if (job?.kind === 'haul' && job.to !== null) return findBuilding(world, job.to);
+  return workplaceOf(world, villager);
+}
+
+/** The input a working building lacks right now, or null while it can work. */
+function shortageAt(world: World, building: Building): WareId | null {
+  if (!building.recipe || building.workerId === null) return null;
+  if (!hasRoom(building) && building.stock[building.recipe.consumes.ware] < building.recipe.consumes.amount) return null;
+  return building.stock[building.recipe.consumes.ware] < building.recipe.consumes.amount ? building.recipe.consumes.ware : null;
+}
 
 /** Hand a job back: the villager forgets it and its target loses the claim. */
 function release(world: World, job: Job | undefined, villager: Villager | undefined): void {
   if (job) {
     const claimant = villager?.id ?? null;
-    const target = job.kind === 'fell' ? findTree(world, job.treeId) : findPile(world, job.pileId);
+    const target = job.kind === 'fell' ? findTree(world, job.treeId) : job.kind === 'haul' ? findPile(world, job.pileId) : undefined;
     if (target && target.reservedBy === claimant) target.reservedBy = null;
     if (job.state !== 'done') { job.state = 'cancelled'; job.assignee = null; job.finishedTick = world.tick; }
   }
@@ -166,6 +181,10 @@ const dropImpossibleJobs = defineRule<Job>({
     const worker = findVillager(world, job.assignee);
     if (worker?.carrying) return false;
     if (job.kind === 'haul') return !findPile(world, job.pileId);
+    if (job.kind === 'supply') {
+      const source = findBuilding(world, job.from);
+      return !source || !findBuilding(world, job.to) || source.stock[job.ware] < 1;
+    }
     const tree = findTree(world, job.treeId);
     return !tree || tree.state === 'felled';
   },
@@ -184,7 +203,7 @@ const listLooseWares = defineRule<WarePile>({
   when: () => true,
   then: (world, pile) => {
     world.jobs.push({
-      id: world.nextJobId++, kind: 'haul', pileId: pile.id, state: 'queued',
+      id: world.nextJobId++, kind: 'haul', pileId: pile.id, to: pile.destination, state: 'queued',
       assignee: null, priority: JOB_PRIORITY.haul, createdTick: world.tick, finishedTick: null,
     });
   },
@@ -197,7 +216,9 @@ const assignJobs = defineRule<Job>({
   subjects: (world) => openJobs(world).sort((a, b) => b.priority - a.priority || a.id - b.id),
   when: (world, job) => available(world).some(villager => accepts(villager.role, job.kind)),
   then: (world, job, ctx) => {
-    const target = job.kind === 'fell' ? findTree(world, job.treeId) : findPile(world, job.pileId);
+    const target = job.kind === 'fell' ? findTree(world, job.treeId)
+      : job.kind === 'haul' ? findPile(world, job.pileId)
+      : findBuilding(world, job.from);
     if (!target) return;
     const worker = available(world)
       .filter(villager => accepts(villager.role, job.kind))
@@ -205,9 +226,17 @@ const assignJobs = defineRule<Job>({
     job.state = 'assigned';
     job.assignee = worker.id;
     worker.jobId = job.id;
-    target.reservedBy = worker.id;
-    if (job.kind === 'fell') travelTo(worker, target, TREE_REACH, WALK_SPEED, 'fell');
-    else travelTo(worker, target, PILE_REACH, WALK_SPEED, 'fetch');
+    if (job.kind === 'fell') {
+      const tree = findTree(world, job.treeId);
+      if (tree) tree.reservedBy = worker.id;
+      travelTo(worker, target, TREE_REACH, WALK_SPEED, 'fell');
+    } else if (job.kind === 'haul') {
+      const pile = findPile(world, job.pileId);
+      if (pile) pile.reservedBy = worker.id;
+      travelTo(worker, target, PILE_REACH, WALK_SPEED, 'fetch');
+    } else {
+      travelTo(worker, target, DOOR_REACH, WALK_SPEED, 'fetch');
+    }
     ctx.emit({ kind: 'job-assigned', jobId: job.id, job: job.kind, targetId: targetOf(job), villagerId: worker.id });
   },
 });
@@ -286,6 +315,8 @@ const fellTreeAndCarry = defineRule<Villager>({
     villager.carrying = { ware: 'log', amount: 1 };
     travelTo(villager, world.stockpile, STOCKPILE_REACH, CARRY_SPEED, 'deliver');
     ctx.emit({ kind: 'tree-felled', treeId: tree.id, villagerId: villager.id });
+    // The log comes into the world here, in their arms; the ledger needs to hear it.
+    ctx.emit({ kind: 'ware-gathered', ware: 'log', amount: 1, villagerId: villager.id });
   },
 });
 
@@ -303,7 +334,7 @@ const fellTreeToGround = defineRule<Villager>({
     tree.state = 'felled';
     tree.reservedBy = null;
     world.stats.treesFelled++;
-    const pile = dropWare(world, 'log', tree);
+    const pile = dropWare(world, 'log', tree, 1, workplaceOf(world, villager)?.id ?? null);
     finish(world, findJob(world, villager.jobId), villager);
     ctx.emit({ kind: 'tree-felled', treeId: tree.id, villagerId: villager.id });
     ctx.emit({ kind: 'ware-dropped', ware: pile.ware, pileId: pile.id, x: pile.x, z: pile.z });
@@ -318,6 +349,7 @@ const collectWare = defineRule<Villager>({
   when: (_world, villager) => arrivedTravelling(villager, 'fetch'),
   then: (world, villager, ctx) => {
     const job = findJob(world, villager.jobId);
+    if (job && job.kind !== 'haul') return; // A supply run is another rule's business.
     const pile = job?.kind === 'haul' ? findPile(world, job.pileId) : undefined;
     if (!pile) {
       release(world, job, villager);
@@ -326,8 +358,8 @@ const collectWare = defineRule<Villager>({
     }
     world.piles = world.piles.filter(other => other.id !== pile.id);
     villager.carrying = { ware: pile.ware, amount: pile.amount };
-    // Wares go where the carrier works, or to the clearing if they work nowhere.
-    const home = workplaceOf(world, villager);
+    // The pile said where it was headed; failing that, wherever the carrier works.
+    const home = (job?.kind === 'haul' ? findBuilding(world, job.to) : undefined) ?? workplaceOf(world, villager);
     if (home) travelTo(villager, home, DOOR_REACH, CARRY_SPEED, 'deliver');
     else travelTo(villager, world.stockpile, STOCKPILE_REACH, CARRY_SPEED, 'deliver');
     ctx.emit({ kind: 'ware-collected', ware: pile.ware, amount: pile.amount, pileId: pile.id, villagerId: villager.id });
@@ -339,7 +371,8 @@ const storeDelivery = defineRule<Villager>({
   phase: 'resolve',
   about: 'Adds a carried ware to the stockpile the moment the villager reaches the clearing.',
   subjects: travellers,
-  when: (_world, villager) => arrivedTravelling(villager, 'deliver'),
+  when: (world, villager) => arrivedTravelling(villager, 'deliver')
+    && distance(villager, world.stockpile) <= STOCKPILE_REACH + ARRIVED,
   then: (world, villager, ctx) => {
     const load = villager.carrying;
     if (load) {
@@ -418,9 +451,9 @@ const takeTool = defineRule<Villager>({
   then: (world, villager, ctx) => {
     const hut = workplaceOf(world, villager);
     villager.activity = { kind: 'idle' };
-    if (!hut) return;
-    villager.tool = 'axe';
-    ctx.emit({ kind: 'shift-started', villagerId: villager.id, buildingId: hut.id, tool: 'axe' });
+    if (!hut || villager.tool !== null) return;
+    villager.tool = hut.tool;
+    ctx.emit({ kind: 'shift-started', villagerId: villager.id, buildingId: hut.id, tool: hut.tool });
   },
 });
 
@@ -431,7 +464,7 @@ const hutPicksATree = defineRule<Building>({
   subjects: (world) => world.buildings.filter(building => building.kind === 'lumberjack-hut' && building.workerId !== null),
   when: (world, hut) => {
     const worker = findVillager(world, hut.workerId);
-    return !!worker && worker.tool === 'axe' && worker.jobId === null && !worker.carrying
+    return !!worker && worker.tool !== null && worker.jobId === null && !worker.carrying
       && worker.activity.kind !== 'chop' && hasRoom(hut);
   },
   then: (world, hut, ctx) => {
@@ -457,9 +490,9 @@ const storeInBuilding = defineRule<Villager>({
   phase: 'resolve',
   about: 'Puts a carried ware into the worker\u2019s own building, up to its capacity.',
   subjects: travellers,
-  when: (world, villager) => arrivedTravelling(villager, 'deliver') && !!workplaceOf(world, villager),
+  when: (world, villager) => arrivedTravelling(villager, 'deliver') && !!deliveryTarget(world, villager),
   then: (world, villager, ctx) => {
-    const hut = workplaceOf(world, villager)!;
+    const hut = deliveryTarget(world, villager)!;
     const load = villager.carrying;
     if (load && hasRoom(hut)) {
       hut.stock[load.ware] += load.amount;
@@ -486,6 +519,118 @@ const newDay = defineRule<World>({
       if (villager.workplace !== null && villager.activity.kind === 'idle' && !villager.carrying) villager.tool = null;
     }
     ctx.emit({ kind: 'day-begins', day: world.day });
+  },
+});
+
+/* ------------------------------------------------- making things */
+
+const fetchInputs = defineRule<Building>({
+  id: 'fetch-inputs',
+  phase: 'plan',
+  about: 'A building short of an input asks for one from whichever building has a spare.',
+  subjects: (world) => world.buildings.filter(building => building.workerId !== null && shortOf(building) !== null),
+  when: (world, building) => {
+    const ware = shortOf(building)!;
+    if (!hasRoom(building)) return false;
+    if (world.jobs.some(job => job.kind === 'supply' && job.to === building.id && job.state !== 'done' && job.state !== 'cancelled')) return false;
+    return world.buildings.some(other => other.id !== building.id && spare(other, ware) > 0);
+  },
+  then: (world, building, ctx) => {
+    const ware = shortOf(building)!;
+    const source = world.buildings
+      .filter(other => other.id !== building.id && spare(other, ware) > 0)
+      .sort((a, b) => distance(a, building) - distance(b, building) || a.id - b.id)[0];
+    const job: Job = {
+      id: world.nextJobId++, kind: 'supply', ware, from: source.id, to: building.id,
+      state: 'queued', assignee: null, priority: JOB_PRIORITY.haul, createdTick: world.tick, finishedTick: null,
+    };
+    world.jobs.push(job);
+    ctx.emit({ kind: 'supply-asked', jobId: job.id, ware, from: source.id, to: building.id });
+  },
+});
+
+const collectFromStore = defineRule<Villager>({
+  id: 'collect-from-store',
+  phase: 'resolve',
+  about: 'Takes a ware out of one building\u2019s store and sets off for the building that asked.',
+  subjects: travellers,
+  when: (world, villager) => {
+    if (!arrivedTravelling(villager, 'fetch')) return false;
+    return findJob(world, villager.jobId)?.kind === 'supply';
+  },
+  then: (world, villager, ctx) => {
+    const job = findJob(world, villager.jobId)!;
+    if (job.kind !== 'supply') return;
+    const source = findBuilding(world, job.from), destination = findBuilding(world, job.to);
+    if (!source || !destination || source.stock[job.ware] < 1) {
+      release(world, job, villager);
+      ctx.emit({ kind: 'job-abandoned', jobId: job.id, job: 'supply', targetId: job.from, villagerId: villager.id });
+      return;
+    }
+    source.stock[job.ware] -= 1;
+    villager.carrying = { ware: job.ware, amount: 1 };
+    travelTo(villager, destination, DOOR_REACH, CARRY_SPEED, 'deliver');
+    ctx.emit({ kind: 'ware-taken', ware: job.ware, amount: 1, buildingId: source.id, villagerId: villager.id });
+  },
+});
+
+const startCrafting = defineRule<Villager>({
+  id: 'start-crafting',
+  phase: 'plan',
+  about: 'Sets a worker to their building\u2019s recipe once the inputs are in and there is room for the output.',
+  subjects: (world) => world.villagers.filter(v => v.activity.kind === 'idle' && v.jobId === null && v.tool !== null && !v.carrying),
+  when: (world, villager) => {
+    const shop = workplaceOf(world, villager);
+    return !!shop && canCraft(shop);
+  },
+  then: (world, villager) => {
+    const shop = workplaceOf(world, villager)!;
+    // Work happens at the building; walk there first if the day has wandered.
+    if (distance(villager, shop) > DOOR_REACH + ARRIVED) { travelTo(villager, shop, DOOR_REACH, WALK_SPEED, 'clock-on'); return; }
+    villager.activity = { kind: 'craft', buildingId: shop.id, progress: 0, duration: shop.recipe!.seconds };
+  },
+});
+
+const craft = defineRule<Villager>({
+  id: 'craft',
+  phase: 'act',
+  about: 'Advances the work at a bench: a recipe takes as long as it takes.',
+  subjects: (world) => world.villagers.filter(v => v.activity.kind === 'craft'),
+  when: (_world, villager) => villager.activity.kind === 'craft',
+  then: (_world, villager, ctx) => {
+    if (villager.activity.kind !== 'craft') return;
+    villager.activity.progress += ctx.dt;
+  },
+});
+
+const finishCrafting = defineRule<Villager>({
+  id: 'finish-crafting',
+  phase: 'resolve',
+  about: 'Turns the inputs into the output when the recipe finishes, and puts it in the store.',
+  subjects: (world) => world.villagers.filter(v => v.activity.kind === 'craft'),
+  when: (_world, villager) => villager.activity.kind === 'craft' && villager.activity.progress >= villager.activity.duration,
+  then: (world, villager, ctx) => {
+    if (villager.activity.kind !== 'craft') return;
+    const shop = findBuilding(world, villager.activity.buildingId);
+    villager.activity = { kind: 'idle' };
+    if (!shop?.recipe || !canCraft(shop)) return;
+    shop.stock[shop.recipe.consumes.ware] -= shop.recipe.consumes.amount;
+    shop.stock[shop.recipe.produces.ware] += shop.recipe.produces.amount;
+    ctx.emit({ kind: 'ware-used', ware: shop.recipe.consumes.ware, amount: shop.recipe.consumes.amount, buildingId: shop.id });
+    ctx.emit({ kind: 'ware-made', ware: shop.recipe.produces.ware, amount: shop.recipe.produces.amount, stored: shop.stock[shop.recipe.produces.ware], buildingId: shop.id, villagerId: villager.id });
+    if (!hasRoom(shop)) ctx.emit({ kind: 'store-full', buildingId: shop.id });
+  },
+});
+
+const noteShortage = defineRule<Building>({
+  id: 'note-shortage',
+  phase: 'upkeep',
+  about: 'Records what a building is waiting for, so a stalled workshop says why.',
+  subjects: (world) => world.buildings.filter(building => building.recipe !== null),
+  when: (world, building) => shortageAt(world, building) !== building.waiting,
+  then: (world, building, ctx) => {
+    building.waiting = shortageAt(world, building);
+    if (building.waiting) ctx.emit({ kind: 'waiting-for', ware: building.waiting, buildingId: building.id });
   },
 });
 
@@ -530,34 +675,40 @@ export const HAULING: Rulebook = {
 };
 
 /** A building gives out the work: clock on, fell what is in range, store what you fetch. */
-export const LUMBERJACK: Rulebook = {
-  id: 'lumberjack',
-  about: 'A hut with a worker: take the axe, fell nearby trees, haul the logs back, stop when full.',
+export const VILLAGE: Rulebook = {
+  id: 'village',
+  about: 'Buildings give out the work: fell and haul at the hut, saw logs into planks at the mill.',
   rules: [
     acceptCommands,
     dropImpossibleJobs,
     clockOn,
-    // Work already in hand comes first: hand out the hauling, and only then let the
-    // hut pick another tree. The other order fells the whole forest and carries none of it.
+    // Work already in hand comes first: hand out the hauling, and only then let a
+    // building start something new. The other order fells the forest and carries none of it.
     listLooseWares,
+    fetchInputs,
     assignJobs,
+    startCrafting,
     hutPicksATree,
     walk,
     chop,
+    craft,
     takeTool,
     arriveAtTree,
     fellTreeToGround,
     collectWare,
+    collectFromStore,
     storeInBuilding,
     storeDelivery,
+    finishCrafting,
     finishRoaming,
     wanderWhenIdle,
+    noteShortage,
     newDay,
     forgetFinishedJobs,
   ],
 };
 
-export const RULEBOOKS: readonly Rulebook[] = [SETTLEMENT, HAULING, LUMBERJACK];
+export const RULEBOOKS: readonly Rulebook[] = [SETTLEMENT, HAULING, VILLAGE];
 
 /** The default rulebook, in execution order. */
 export const RULES = SETTLEMENT.rules;

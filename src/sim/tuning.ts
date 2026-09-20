@@ -39,10 +39,30 @@ export const JOB_HISTORY_SECONDS = 1;
 export const ISLAND_SEED = 841;
 export const TREE_COUNT = 37;
 
-/** A lumberjack hut: how far it sends its worker, and how many logs it holds. */
-export const HUT_RADIUS = 8;
-export const HUT_CAPACITY = 5;
 export const DOOR_REACH = .6;
+
+/**
+ * Buildings are data. A new building is an entry here plus, at most, one rule —
+ * which is the whole point of declaring recipes rather than writing them.
+ */
+export const BUILDINGS = {
+  'lumberjack-hut': {
+    capacity: 5,
+    /** How far it sends its worker for trees. Zero for a building that works indoors. */
+    radius: 8,
+    tool: 'axe',
+    wants: {},
+    recipe: null,
+  },
+  'sawmill': {
+    capacity: 8,
+    radius: 0,
+    tool: 'saw',
+    /** Keeps three logs on hand; anything above that is spare for somebody else. */
+    wants: { log: 3 },
+    recipe: { consumes: { ware: 'log', amount: 1 }, produces: { ware: 'plank', amount: 1 }, seconds: 5 },
+  },
+} as const;
 
 /** A day is only a shift boundary for now: tools go back to the hut overnight. */
 export const DAY_SECONDS = 120;

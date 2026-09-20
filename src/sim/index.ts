@@ -8,16 +8,18 @@
  *   for (const event of advance(sim, dt)) { ...react... }
  */
 export * from './types.ts';
-export { HAULING, LUMBERJACK, PHASES, RULEBOOKS, RULES, SETTLEMENT, defineRule } from './rules.ts';
+export { HAULING, PHASES, RULEBOOKS, RULES, SETTLEMENT, VILLAGE, defineRule } from './rules.ts';
 export type { CompiledRule, Rule, RuleContext, RulePhase, RuleTrace, Rulebook } from './rules.ts';
 export { advance, alpha, createSimulation, enqueue, tick, tickTimes } from './engine.ts';
 export type { Simulation, TickOptions } from './engine.ts';
 export { serialize, deserialize } from './serialize.ts';
+export { assertSound, census, checkWorld, ledger } from './invariants.ts';
+export type { Violation } from './invariants.ts';
 export { HOME, distance, elevation, onLand } from './terrain.ts';
 export { nextRandom } from './rng.ts';
 export {
   activeJobs, addBuilding, addVillager, createWorld, dropWare, elapsedSeconds, findBuilding,
-  findJob, findPile, findTree, findVillager, hasRoom, hashWorld, heldIn, hire, idleVillagers, jobForTree,
-  loosePiles, openJobs, secondsToTicks, standingTrees, totalWare, workplaceOf,
+  findJob, findPile, findTree, findVillager, canCraft, hasRoom, hashWorld, heldIn, hire, idleVillagers, jobForTree,
+  loosePiles, openJobs, secondsToTicks, shortOf, spare, standingTrees, totalWare, workplaceOf,
 } from './world.ts';
 export * as tuning from './tuning.ts';

@@ -46,17 +46,28 @@ export function label(tree: Tree): string {
   return `${tree.kind === 0 ? 'fir' : 'oak'} #${tree.id}`;
 }
 
+/** A building's short name: "hut", "sawmill". */
+export function shortKind(building: Building | undefined): string {
+  return building ? building.kind.replace('lumberjack-hut', 'hut') : 'store';
+}
+
 /** What a ware is called when it is one thing you can pick up. */
 export function wareName(ware: WareId, amount = 1): string {
-  const one = ware === 'log' ? 'log' : 'stone';
-  return amount === 1 ? `a ${one}` : `${amount} ${one}s`;
+  return amount === 1 ? `a ${ware}` : `${amount} ${ware}s`;
 }
 
 /** What a job is for, in words: a numbered tree, or a ware on the ground. */
 export function jobTarget(world: World, job: Job): string {
   if (job.kind === 'fell') return `#${job.treeId}`;
+  if (job.kind === 'supply') {
+    const to = findBuilding(world, job.to);
+    return `${wareName(job.ware)} for the ${to ? to.kind.replace('lumberjack-', '') : 'store'}`;
+  }
   const pile = findPile(world, job.pileId);
-  return pile ? wareName(pile.ware, pile.amount) : 'a lost ware';
+  if (pile) return wareName(pile.ware, pile.amount);
+  // Already in somebody's arms: the pile is gone but the errand is not finished.
+  const carrier = findVillager(world, job.assignee);
+  return carrier?.carrying ? `${wareName(carrier.carrying.ware, carrier.carrying.amount)} in hand` : 'a lost ware';
 }
 
 function bar(fraction: number, width = 10): string {
@@ -122,9 +133,12 @@ export function describeVillager(world: World, villager: Villager): string {
 export function renderBuilding(world: World, building: Building, paint: Palette): string {
   const worker = findVillager(world, building.workerId);
   const held = heldIn(building);
-  const inRange = standingTrees(world).filter(tree => distance(tree, building) <= building.radius).length;
-  const store = `${held === building.capacity ? paint.warn(`${held}/${building.capacity} full`) : `${held}/${building.capacity}`}`;
-  return `${paint.bark('hut')} ${paint.dim(`#${building.id}`)}  ${worker ? worker.name : paint.dim('nobody working here')}  store ${store}  ${paint.dim(`${inRange} trees in range`)}`;
+  const store = held === building.capacity ? paint.warn(`${held}/${building.capacity} full`) : `${held}/${building.capacity}`;
+  const contents = Object.entries(building.stock).filter(([, count]) => count > 0).map(([ware, count]) => `${count} ${ware}${count === 1 ? '' : 's'}`).join(', ');
+  const note = building.waiting ? paint.warn(`waiting for ${building.waiting}`)
+    : building.radius > 0 ? paint.dim(`${standingTrees(world).filter(tree => distance(tree, building) <= building.radius).length} trees in range`)
+    : building.recipe ? paint.dim(`${building.recipe.consumes.ware} \u2192 ${building.recipe.produces.ware}`) : '';
+  return `${paint.bark(shortKind(building).padEnd(7))} ${paint.dim(`#${building.id}`)} ${(worker ? worker.name : paint.dim('nobody')).padEnd(8)} store ${store}${contents ? paint.dim(`  (${contents})`) : ''}  ${note}`;
 }
 
 export function renderBuildings(world: World, paint: Palette): string {
@@ -198,6 +212,7 @@ function sentence(world: World, event: SimEvent): string | null {
     case 'order-cancelled': return `#${event.treeId} called off`;
     case 'job-assigned': {
       if (event.job === 'fell') return `${who(event.villagerId)} sets off for #${event.targetId}`;
+      if (event.job === 'supply') return `${who(event.villagerId)} goes to the ${shortKind(findBuilding(world, event.targetId))} to fetch it`;
       // By the time this is read the ware is often already picked up, hence "it".
       const pile = findPile(world, event.targetId);
       return `${who(event.villagerId)} goes to fetch ${pile ? wareName(pile.ware, pile.amount) : 'it'}`;
@@ -207,13 +222,28 @@ function sentence(world: World, event: SimEvent): string | null {
     case 'ware-dropped': return `${wareName(event.ware)} is left lying where it fell`;
     case 'ware-collected': return `${who(event.villagerId)} picks up ${wareName(event.ware, event.amount)}`;
     case 'ware-delivered': return `${wareName(event.ware, event.amount)} ${event.amount === 1 ? 'reaches' : 'reach'} the clearing — ${event.ware} ${event.total}`;
-    case 'shift-started': return `${who(event.villagerId)} takes the ${event.tool} from the hut`;
+    case 'shift-started': return `${who(event.villagerId)} takes the ${event.tool} from the ${shortKind(findBuilding(world, event.buildingId))}`;
     case 'ware-stored': {
       const hut = findBuilding(world, event.buildingId);
-      return `${wareName(event.ware, event.amount)} goes into the hut \u2014 ${event.stored} of ${hut?.capacity ?? event.capacity}`;
+      return `${wareName(event.ware, event.amount)} goes into the ${shortKind(hut)} \u2014 ${event.stored} of ${hut?.capacity ?? event.capacity}`;
     }
-    case 'store-full': return `the hut is full; there is nowhere to put another log`;
+    case 'store-full': return `the ${shortKind(findBuilding(world, event.buildingId))} is full; there is nowhere to put the next one`;
     case 'day-begins': return `\u2014 day ${event.day} \u2014`;
+    case 'ware-taken': {
+      const from = findBuilding(world, event.buildingId);
+      return `${who(event.villagerId)} takes ${wareName(event.ware, event.amount)} from the ${shortKind(from)}`;
+    }
+    case 'ware-made': {
+      const shop = findBuilding(world, event.buildingId);
+      return `the ${shortKind(shop)} turns out ${wareName(event.ware, event.amount)} \u2014 ${event.stored} in store`;
+    }
+    case 'supply-asked': return `the ${shortKind(findBuilding(world, event.to))} asks the ${shortKind(findBuilding(world, event.from))} for ${wareName(event.ware)}`;
+    case 'waiting-for': {
+      const shop = findBuilding(world, event.buildingId);
+      return `the ${shortKind(shop)} is waiting for ${wareName(event.ware)}`;
+    }
+    case 'ware-gathered': return `${who(event.villagerId)} shoulders ${wareName(event.ware, event.amount)}`;
+    case 'ware-used': return null; // Implied by what the building turns out.
     case 'chop-swing': return null; // Counted, not narrated one swing at a time.
   }
 }

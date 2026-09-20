@@ -1,6 +1,6 @@
 import { nextRandom } from './rng.ts';
 import { HOME, distance, onLand } from './terrain.ts';
-import { ISLAND_SEED, TICK_SECONDS, TREE_COUNT } from './tuning.ts';
+import { BUILDINGS, ISLAND_SEED, TICK_SECONDS, TREE_COUNT } from './tuning.ts';
 import { emptyStock, type Building, type BuildingKind, type Job, type Role, type Tree, type TreeKind, type Vec2, type Villager, type WareId, type WarePile, type World } from './types.ts';
 
 /** Seconds of world time. Derived from whole ticks, so it can never drift. */
@@ -14,7 +14,7 @@ export function secondsToTicks(seconds: number): number {
 
 export function createWorld(seed = ISLAND_SEED): World {
   const world: World = {
-    version: 4,
+    version: 5,
     tick: 0,
     day: 1,
     seed,
@@ -71,10 +71,36 @@ export function findTree(world: World, id: number): Tree | undefined {
 }
 
 /** Raise a building. It does nothing until somebody works there. */
-export function addBuilding(world: World, kind: BuildingKind, at: Vec2, capacity: number, radius: number): Building {
-  const building: Building = { id: world.nextBuildingId++, kind, x: at.x, z: at.z, radius, workerId: null, stock: emptyStock(), capacity };
+export function addBuilding(world: World, kind: BuildingKind, at: Vec2): Building {
+  const type = BUILDINGS[kind];
+  const building: Building = {
+    id: world.nextBuildingId++, kind, x: at.x, z: at.z,
+    radius: type.radius, workerId: null, stock: emptyStock(), capacity: type.capacity,
+    wants: { ...type.wants }, recipe: type.recipe ? { ...type.recipe } : null, tool: type.tool, waiting: null,
+  };
   world.buildings.push(building);
   return building;
+}
+
+/** What a building holds beyond what it wants to keep: free for anyone to fetch. */
+export function spare(building: Building, ware: WareId): number {
+  return Math.max(0, building.stock[ware] - (building.wants[ware] ?? 0));
+}
+
+/** The input this building is short of, if any. */
+export function shortOf(building: Building): WareId | null {
+  for (const [ware, target] of Object.entries(building.wants) as [WareId, number][]) {
+    if (building.stock[ware] < target) return ware;
+  }
+  return null;
+}
+
+/** Can the worker run the recipe right now? */
+export function canCraft(building: Building): boolean {
+  const recipe = building.recipe;
+  if (!recipe) return false;
+  if (building.stock[recipe.consumes.ware] < recipe.consumes.amount) return false;
+  return heldIn(building) - recipe.consumes.amount + recipe.produces.amount <= building.capacity;
 }
 
 export function findBuilding(world: World, id: number | null): Building | undefined {
@@ -108,8 +134,8 @@ export function hasRoom(building: Building): boolean {
 }
 
 /** Put a ware on the ground. This is how anything enters the world with a place. */
-export function dropWare(world: World, ware: WareId, at: Vec2, amount = 1): WarePile {
-  const pile: WarePile = { id: world.nextPileId++, ware, amount, x: at.x, z: at.z, reservedBy: null };
+export function dropWare(world: World, ware: WareId, at: Vec2, amount = 1, destination: number | null = null): WarePile {
+  const pile: WarePile = { id: world.nextPileId++, ware, amount, x: at.x, z: at.z, destination, reservedBy: null };
   world.piles.push(pile);
   return pile;
 }
@@ -173,8 +199,11 @@ export function hashWorld(world: World): string {
     if (villager.activity.kind === 'chop') mix(villager.activity.progress);
     if (villager.activity.kind === 'travel') { mix(villager.activity.to.x); mix(villager.activity.to.z); }
   }
-  for (const building of world.buildings) { mix(building.id); mix(building.workerId ?? -1); mix(heldIn(building)); }
+  for (const building of world.buildings) {
+    mix(building.id); mix(building.workerId ?? -1); mixText(building.waiting ?? 'none');
+    for (const ware of Object.keys(building.stock).sort()) { mixText(ware); mix(building.stock[ware as WareId]); }
+  }
   for (const pile of world.piles) { mix(pile.id); mixText(pile.ware); mix(pile.amount); mix(pile.x); mix(pile.z); mix(pile.reservedBy ?? -1); }
-  for (const job of world.jobs) { mix(job.id); mixText(job.kind); mix(job.kind === 'fell' ? job.treeId : job.pileId); mixText(job.state); mix(job.assignee ?? -1); }
+  for (const job of world.jobs) { mix(job.id); mixText(job.kind); mix(job.kind === 'fell' ? job.treeId : job.kind === 'haul' ? job.pileId : job.to); mixText(job.state); mix(job.assignee ?? -1); }
   return (hash >>> 0).toString(16).padStart(8, '0');
 }

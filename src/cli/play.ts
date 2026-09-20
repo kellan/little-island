@@ -13,9 +13,10 @@
 import { createInterface } from 'node:readline';
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
-  HOME, LUMBERJACK, RULEBOOKS, addBuilding, addVillager, createSimulation, createWorld,
-  deserialize, dropWare, enqueue, findBuilding, hashWorld, hire, ROLES, serialize, tickTimes,
-  tuning, WARES, type Role, type Rulebook, type SimEvent, type WareId, type World,
+  HOME, RULEBOOKS, VILLAGE, addBuilding, addVillager, createSimulation, createWorld,
+  census, checkWorld, deserialize, dropWare, enqueue, findBuilding, hashWorld, hire, ROLES,
+  serialize, tickTimes,
+  tuning, WARES, type BuildingKind, type Role, type Rulebook, type SimEvent, type WareId, type World,
 } from '../sim/index.ts';
 import * as view from './view.ts';
 
@@ -38,15 +39,17 @@ const asked = Number(option('--seed'));
 const seed = Number.isFinite(asked) ? asked : tuning.ISLAND_SEED;
 const loaded = option('--load') ? load(option('--load')!) : null;
 if (option('--load') && !loaded) say(paint.warn(`could not read a world from ${option('--load')}`));
-const chosen = RULEBOOKS.find(book => book.id === option('--rules')) ?? LUMBERJACK;
+const chosen = RULEBOOKS.find(book => book.id === option('--rules')) ?? VILLAGE;
 const sim = createSimulation(loaded ?? createWorld(seed), chosen);
 const origin = loaded ? 'a saved island' : `seed ${seed}`;
 
-// A hut with nobody in it does nothing, so a fresh lumberjack island comes with one.
-if (chosen.id === 'lumberjack' && !sim.world.buildings.length) {
-  const hut = addBuilding(sim.world, 'lumberjack-hut', { x: HOME.x + 2.4, z: HOME.z - 1.5 }, tuning.HUT_CAPACITY, tuning.HUT_RADIUS);
-  const first = sim.world.villagers[0];
-  if (first) hire(sim.world, first, hut);
+// A building with nobody in it does nothing, so a fresh village comes with a hut,
+// a sawmill, and somebody in each.
+if (chosen.id === 'village' && !sim.world.buildings.length) {
+  const hut = addBuilding(sim.world, 'lumberjack-hut', { x: HOME.x + 2.4, z: HOME.z - 1.5 });
+  const mill = addBuilding(sim.world, 'sawmill', { x: HOME.x - 2.6, z: HOME.z + 1.2 });
+  hire(sim.world, sim.world.villagers[0], hut);
+  hire(sim.world, addVillager(sim.world, 'Wren', HOME), mill);
 }
 
 const seconds = (text: string | undefined, fallback: number) => {
@@ -184,25 +187,26 @@ const commands: Record<string, Command> = {
       if (next.id === 'settlement' && sim.world.piles.length) say(paint.dim('  (nothing in these rules fetches a ware off the ground, so what is lying about stays lying about)'));
     },
   },
-  huts: { about: 'the buildings: who works there, what is in the store', run: () => say(view.renderBuildings(sim.world, paint)) },
+  buildings: { about: 'who works where, what is in each store, what anything is waiting for', run: () => say(view.renderBuildings(sim.world, paint)) },
   hire: {
-    about: 'hire <name> [hut] — put somebody to work at a building',
+    about: 'hire <name> [building] — put somebody to work at a building',
     run: (args) => {
       const villager = sim.world.villagers.find(person => person.name.toLowerCase() === (args[0] ?? '').toLowerCase());
       if (!villager) return say(paint.warn(`  nobody here is called ${args[0] ?? 'that'}`));
-      const hut = findBuilding(sim.world, Number(args[1] ?? sim.world.buildings[0]?.id ?? NaN));
-      if (!hut) return say(paint.warn('  there is no such building'));
-      hire(sim.world, villager, hut);
+      const building = findBuilding(sim.world, Number(args[1] ?? sim.world.buildings[0]?.id ?? NaN));
+      if (!building) return say(paint.warn('  there is no such building'));
+      hire(sim.world, villager, building);
       villager.tool = null;
-      say(`  ${villager.name} now works at hut #${hut.id}`);
+      say(`  ${villager.name} now works at ${building.kind} #${building.id}`);
     },
   },
   build: {
-    about: 'build hut — put up a lumberjack hut where the first villager stands',
-    run: () => {
+    about: `build [${Object.keys(tuning.BUILDINGS).join('|')}] — put one up where the first villager stands`,
+    run: (args) => {
+      const kind = (Object.keys(tuning.BUILDINGS).includes(args[0]) ? args[0] : 'lumberjack-hut') as BuildingKind;
       const at = sim.world.villagers[0] ?? HOME;
-      const hut = addBuilding(sim.world, 'lumberjack-hut', at, tuning.HUT_CAPACITY, tuning.HUT_RADIUS);
-      say(`  hut #${hut.id} goes up at ${hut.x.toFixed(1)}, ${hut.z.toFixed(1)} — nobody works there yet`);
+      const building = addBuilding(sim.world, kind, at);
+      say(`  ${building.kind} #${building.id} goes up at ${building.x.toFixed(1)}, ${building.z.toFixed(1)} — nobody works there yet`);
     },
   },
   wares: { about: 'what is in the stockpile, and what is still lying about', run: () => say(view.renderWares(sim.world, paint)) },
@@ -257,6 +261,14 @@ const commands: Record<string, Command> = {
       say(view.renderStatus(sim.world, paint));
     },
   },
+  check: {
+    about: 'run the invariants against the world as it stands',
+    run: () => {
+      const broken = checkWorld(sim.world);
+      if (!broken.length) return say(`  ${paint.dim('all sound')}  ${Object.entries(census(sim.world)).filter(([, n]) => n > 0).map(([ware, n]) => `${n} ${ware}${n === 1 ? '' : 's'}`).join(', ') || 'nothing made yet'}`);
+      for (const violation of broken) say(paint.warn(`  ${violation.invariant}: ${violation.detail}`));
+    },
+  },
   hash: { about: 'fingerprint the world, for comparing two runs', run: () => say(`  ${hashWorld(sim.world)}  tick ${sim.world.tick}`) },
   help: {
     about: 'this list',
@@ -267,7 +279,7 @@ const commands: Record<string, Command> = {
   },
   quit: { about: 'leave the island as you found it', run: () => process.exit(0) },
 };
-const aliases: Record<string, string> = { l: 'look', s: 'status', w: 'wait', order: 'chop', fell: 'chop', '?': 'help', exit: 'quit', q: 'quit', run: 'until' };
+const aliases: Record<string, string> = { l: 'look', s: 'status', w: 'wait', order: 'chop', fell: 'chop', huts: 'buildings', b: 'buildings', '?': 'help', exit: 'quit', q: 'quit', run: 'until' };
 
 function perform(line: string): void {
   const [word, ...args] = line.trim().split(/\s+/);

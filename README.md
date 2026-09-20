@@ -18,7 +18,7 @@ Press `Ctrl-C` in that terminal to stop the server. To use another port, run `PO
 bin/check
 ```
 
-That runs the simulation tests, typechecks the project, and creates `dist/` for static hosting. `bin/play` opens the same island in a terminal. While the page is open, `window.island` exposes the live simulation and scene for console poking and browser tests. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts are optional, with system font fallbacks.
+That runs the simulation tests, typechecks the project, and creates `dist/` for static hosting. What the tests cover, and the classes of bug they are aimed at, is in [docs/TESTING.md](docs/TESTING.md). `bin/play` opens the same island in a terminal. While the page is open, `window.island` exposes the live simulation and scene for console poking and browser tests. The scripts work from any current directory because they resolve the project root themselves. No backend, secrets, model API, external asset download, or runtime asset pipeline is required. Google Fonts are optional, with system font fallbacks.
 
 ## Controls
 
@@ -74,29 +74,35 @@ Little Island  00:00   timber 0   felled 0   standing 37
 rulebook. `trace on` narrates the engine's decisions and hides the rules that fire
 every tick for anyone walking; `trace all` shows everything.
 
-By default the terminal runs the `lumberjack` rulebook, which is where the
-economy is being designed. A villager is assigned to a lumberjack hut; at the
-start of the day they walk to the hut and pick up the axe, fell the nearest tree
-in range, haul the log back, and stop when the store is full:
+By default the terminal runs the `village` rulebook, which is where the economy
+is being designed. A villager assigned to a lumberjack hut walks there at the
+start of the day, picks up the axe, fells the nearest tree in range, hauls the
+log back, and stops when the store is full. A sawmill asks the hut for logs and
+saws them into planks:
 
 ```text
-> until
+> wait 30
+[00:00] the sawmill is waiting for a log
 [00:01] Robin takes the axe from the hut
+[00:01] Wren takes the saw from the sawmill
 [00:07] #36 comes down
 [00:07] a log is left lying where it fell
 [00:07] Robin goes to fetch it
 [00:09] a log goes into the hut — 1 of 5
-...
-[00:46] a log goes into the hut — 5 of 5
-[00:46] the hut is full; there is nowhere to put another log
-Little Island  day 1 00:46   logs 5   felled 5   standing 32
-  Robin   [axe] waiting; the hut is full
-  hut #1  Robin  store 5/5 full  9 trees in range
+[00:09] the sawmill asks the hut for a log
+[00:11] a log goes into the sawmill — 1 of 8
+[00:20] the sawmill turns out a plank — 1 in store
+> buildings
+  hut     #1 Robin    store 0/5  13 trees in range
+  sawmill #2 Wren     store 2/8  (1 log, 1 plank)  log → plank
+> check
+  all sound  1 log, 1 plank
 ```
 
-`huts` lists the buildings, `hire <name> [hut]` puts somebody to work, `build
-hut` puts one up, `wares` shows what is stored and what is lying about, and
-`spawn <name> [role]` adds another pair of hands.
+`buildings` lists them, `hire <name> [building]` puts somebody to work, `build
+sawmill` puts one up, `wares` shows what is stored and what is lying about,
+`spawn <name> [role]` adds another pair of hands, and `check` runs the invariants
+against whatever you have played into.
 
 `bin/play --rules settlement` runs the browser's rules instead, and `--rules
 hauling` the intermediate experiment where logs lie on the ground but no building

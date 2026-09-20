@@ -9,7 +9,7 @@
 export type Vec2 = { x: number; z: number };
 
 /** Things that can be carried, stacked and counted. */
-export type WareId = 'log' | 'stone';
+export type WareId = 'log' | 'stone' | 'plank';
 
 export type TreeKind = 0 | 1;
 
@@ -32,6 +32,8 @@ export type WarePile = {
   amount: number;
   x: number;
   z: number;
+  /** Where this is meant to end up: a building, or null for the clearing. */
+  destination: number | null;
   /** Villager on their way to collect it, so two never fetch the same log. */
   reservedBy: number | null;
 };
@@ -42,7 +44,8 @@ export type TravelPurpose = 'clock-on' | 'fell' | 'fetch' | 'deliver' | 'roam';
 export type Activity =
   | { kind: 'idle' }
   | { kind: 'travel'; to: Vec2; stopWithin: number; speed: number; purpose: TravelPurpose }
-  | { kind: 'chop'; treeId: number; progress: number; duration: number };
+  | { kind: 'chop'; treeId: number; progress: number; duration: number }
+  | { kind: 'craft'; buildingId: number; progress: number; duration: number };
 
 export type Carried = { ware: WareId; amount: number };
 
@@ -57,7 +60,7 @@ export const ROLES: readonly Role[] = ['hand', 'feller', 'carrier'];
 
 export function accepts(role: Role, job: JobKind): boolean {
   if (role === 'feller') return job === 'fell';
-  if (role === 'carrier') return job === 'haul';
+  if (role === 'carrier') return job === 'haul' || job === 'supply';
   return true;
 }
 
@@ -83,7 +86,14 @@ export type Villager = {
 };
 
 /** A building: somewhere that gives out work and stores what comes back. */
-export type BuildingKind = 'lumberjack-hut';
+export type BuildingKind = 'lumberjack-hut' | 'sawmill';
+
+/** What a worker turns inputs into. Declared as data, not written as a rule. */
+export type Recipe = {
+  consumes: { ware: WareId; amount: number };
+  produces: { ware: WareId; amount: number };
+  seconds: number;
+};
 
 export type Building = {
   id: number;
@@ -97,18 +107,29 @@ export type Building = {
   stock: Record<WareId, number>;
   /** Total wares the building will hold. Full means work stops. */
   capacity: number;
+  /** How many of each input the building keeps on hand. Anything else it holds is spare. */
+  wants: Partial<Record<WareId, number>>;
+  /** What the worker makes here, if anything. */
+  recipe: Recipe | null;
+  /** The tool kept here; the worker picks it up to start the day. */
+  tool: ToolId;
+  /** The input it is short of, while it is short of it. */
+  waiting: WareId | null;
 };
 
 /** What a worker carries to do their job. Kept at the building overnight. */
-export type ToolId = 'axe';
+export type ToolId = 'axe' | 'saw';
+
+export const TOOLS: readonly ToolId[] = ['axe', 'saw'];
 
 export type JobState = 'queued' | 'assigned' | 'done' | 'cancelled';
-export type JobKind = 'fell' | 'haul';
+export type JobKind = 'fell' | 'haul' | 'supply';
 
 /** What a job is about. Adding a kind here is how the settlement learns a verb. */
 export type JobTarget =
   | { kind: 'fell'; treeId: number }
-  | { kind: 'haul'; pileId: number };
+  | { kind: 'haul'; pileId: number; to: number | null }
+  | { kind: 'supply'; ware: WareId; from: number; to: number };
 
 export type Job = JobTarget & {
   id: number;
@@ -148,6 +169,12 @@ export type SimEvent = { tick: number } & (
   | { kind: 'ware-stored'; ware: WareId; amount: number; buildingId: number; stored: number; capacity: number; villagerId: number }
   | { kind: 'store-full'; buildingId: number }
   | { kind: 'day-begins'; day: number }
+  | { kind: 'ware-taken'; ware: WareId; amount: number; buildingId: number; villagerId: number }
+  | { kind: 'ware-gathered'; ware: WareId; amount: number; villagerId: number }
+  | { kind: 'ware-used'; ware: WareId; amount: number; buildingId: number }
+  | { kind: 'ware-made'; ware: WareId; amount: number; stored: number; buildingId: number; villagerId: number }
+  | { kind: 'waiting-for'; ware: WareId; buildingId: number }
+  | { kind: 'supply-asked'; jobId: number; ware: WareId; from: number; to: number }
 );
 
 export type SimEventKind = SimEvent['kind'];
@@ -156,7 +183,7 @@ export type SimEventKind = SimEvent['kind'];
 export type EmittedEvent = SimEvent extends infer E ? (E extends SimEvent ? Omit<E, 'tick'> : never) : never;
 
 export type World = {
-  version: 4;
+  version: 5;
   /** Whole ticks elapsed. Seconds are derived, never stored, so time cannot drift. */
   tick: number;
   /** Current state of the world's only random number generator. */
@@ -179,8 +206,8 @@ export type World = {
   stats: { treesFelled: number; logsDelivered: number; ordersQueued: number };
 };
 
-export const WARES: readonly WareId[] = ['log', 'stone'];
+export const WARES: readonly WareId[] = ['log', 'stone', 'plank'];
 
 export function emptyStock(): Record<WareId, number> {
-  return { log: 0, stone: 0 };
+  return { log: 0, stone: 0, plank: 0 };
 }
