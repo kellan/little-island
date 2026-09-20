@@ -27,6 +27,27 @@ That runs the simulation tests, typechecks the project, creates `dist/` for stat
 - Space or pause: pause simulation. 1×: cycle through 1×, 2×, and 3×.
 - Home icon: find Robin up close. Island title: reset the camera. Sound icon: toggle synthesized sound effects.
 - Help: controls. Reset: confirm a fresh island.
+- Swap icon: change the island's dressing. Same game, different world.
+
+## Two dressings
+
+The island comes in two visual treatments, chosen by the swap button in the controls or by
+opening `?goblin` (or `?theme=island`) directly; the choice is remembered in this browser.
+The default is the bright island Robin lives on. The other is the goblin fork from
+[docs/GOBLINS.md](docs/GOBLINS.md), drawn: peat light and close fog, trees twice as tall
+and no wider because goblins cannot fell one, shelf fungus up the trunks and toadstools
+round the feet, the bog and mushroom-bed sites the bright island never drew, a stump that
+grows the next crop once its tree is worked out, a settlement that is a covered pit and
+three sticks, a log too long for the goblin carrying it, and a HUD that grumbles instead of
+warning you.
+
+It is a dressing and nothing more: the same rulebook, the same seed, the same trees, the
+same save file. Switching mid-game keeps your logs. Colours, copy and a couple of numbers
+live in `src/theme.ts`; `src/scene.ts` branches on them where the fork needs different
+geometry, and `src/style.css` carries a colour-only `[data-theme=goblin]` block so the
+HUD's layout and breakpoints stay in one place. Nothing in `src/sim/` knows a theme exists.
+What each decision on screen is answering is written up at the end of
+[docs/GOBLINS.md](docs/GOBLINS.md).
 
 The island saves to localStorage every five seconds, on deliveries and on leaving. Reload resumes the job, the work list, and any order still waiting in the inbox. All geometry is procedural.
 
@@ -116,13 +137,13 @@ vocabulary is at the top of [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
 
 ## Architecture
 
-`src/sim/` is the game: a rule engine with no renderer, no DOM and no Three.js import. It has two front ends — `src/cli/` in a terminal and `src/scene.ts` plus `src/game.ts` in a browser — and neither is allowed to hold game logic. The state is plain JSON, the host queues commands, the engine runs whole 1/30s ticks and hands back events, so the same elapsed time produces the same world whatever the display refresh rate and a stalled tab cannot bank hours of work. `serialize` / `deserialize` are the persistence boundary. `src/scene.ts` owns the Three.js objects and derives every frame from that state, interpolating between ticks. `src/game.ts` is the only file that touches the browser: clicks become commands, events become sound and messages. `src/main.ts` only chooses between the island and the lab. `src/cli/view.ts` does the same job in text, and `src/cli/play.ts` is a readline loop over the same commands. Terrain height is one function shared by both sides, so feet and props agree with the ground.
+`src/sim/` is the game: a rule engine with no renderer, no DOM and no Three.js import. It has two front ends — `src/cli/` in a terminal and `src/scene.ts` plus `src/game.ts` in a browser — and neither is allowed to hold game logic. The state is plain JSON, the host queues commands, the engine runs whole 1/30s ticks and hands back events, so the same elapsed time produces the same world whatever the display refresh rate and a stalled tab cannot bank hours of work. `serialize` / `deserialize` are the persistence boundary. `src/scene.ts` owns the Three.js objects and derives every frame from that state, interpolating between ticks. `src/game.ts` is the only file that touches the browser: clicks become commands, events become sound and messages. `src/main.ts` only chooses between the island and the lab, and `src/theme.ts` holds the two visual dressings as data. `src/cli/view.ts` does the same job in text, and `src/cli/play.ts` is a readline loop over the same commands. Terrain height is one function shared by both sides, so feet and props agree with the ground.
 
 The rulebook, the tick, the command and event vocabulary, the save format and the known gaps are documented in [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
 
 Where production is going — foraging, depletion, multi-input recipes, upkeep and farms, and the one abstraction that covers them — is in [docs/PRODUCTION.md](docs/PRODUCTION.md), replying to the design brief in [docs/RESOURCES.md](docs/RESOURCES.md).
 
-Two forked explorations, neither of them decisions, sit beside that brief. [docs/GOBLINS.md](docs/GOBLINS.md) asks what changes if the villagers are goblins rather than people. [docs/LINEAGE.md](docs/LINEAGE.md) branches off the goblin fork again: goblins shaped by the work they do, elders as the only way a skill is handed on, and comfort as the thing that carries a settlement's past into its future. Nothing in either is implemented.
+Two forked explorations, neither of them decisions, sit beside that brief. [docs/GOBLINS.md](docs/GOBLINS.md) asks what changes if the villagers are goblins rather than people. [docs/LINEAGE.md](docs/LINEAGE.md) branches off the goblin fork again: goblins shaped by the work they do, elders as the only way a skill is handed on, and comfort as the thing that carries a settlement's past into its future. No mechanic from either is implemented; the goblin fork does have a visual treatment you can open, described above and at the end of its document.
 
 The convex mainland permits direct walking paths without navigation machinery; decorative tree foliage is not a path obstacle in this deliberately narrow prototype.
 

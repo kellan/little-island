@@ -10,7 +10,8 @@ declare global {
   interface Window {
     island: {
       sim: { world: any; rulebook: { id: string } };
-      view: { treeGroups: Map<number, any>; camera: any; pick(x: number, y: number): number | null; workBadge(): { progress: number } | null };
+      view: { treeGroups: Map<number, any>; treeSpent: Map<number, any>; camera: any; pick(x: number, y: number): number | null; workBadge(): { progress: number } | null };
+      theme: { id: string };
     };
   }
 }
@@ -23,11 +24,12 @@ export async function blockThirdParty(page: Page, origin: string) {
   await page.route('**', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
 }
 
-export async function openIsland(page: Page, baseURL?: string) {
+/** `path` opens a dressing other than the default one, e.g. `/?goblin`. */
+export async function openIsland(page: Page, baseURL?: string, path = '/') {
   const problems: string[] = [];
   page.on('pageerror', error => problems.push(`pageerror: ${error.message}`));
   await blockThirdParty(page, new URL(baseURL ?? 'http://localhost:4173/').origin);
-  await page.goto('/', { waitUntil: 'load' });
+  await page.goto(path, { waitUntil: 'load' });
   await page.waitForFunction(() => !!window.island, null, { timeout: 30_000 });
   await page.evaluate(() => { localStorage.clear(); });
   await page.reload({ waitUntil: 'load' });

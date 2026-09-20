@@ -96,6 +96,18 @@ Both of the guards here were checked by putting the bug back. Restoring the CSS
 fails the felling test at the progress bar. A test nobody has seen fail is a
 test nobody should trust.
 
+Three more cover the goblin dressing (`e2e/goblin.spec.ts`), because a theme that
+quietly failed to build its scene would still pass every unit test: that the
+island boots wearing it and is the same simulation underneath, that a goblin can
+still be sent at a tree and the whole loop reads in her own words, and that the
+switch changes the dressing without touching the save. What the dressing is and
+what each of its decisions answers is at the end of [GOBLINS.md](GOBLINS.md).
+
+`src/theme.test.ts` covers the part of a theme that has no pixels: which
+dressing a URL and a remembered choice resolve to, and that neither theme is
+missing a line of copy the other has — a missing one is a blank label on screen
+and nothing else would catch it.
+
 Four more cover the stress lab, which is the only thing that reports whether a
 browser can hold a settlement at all: that it opens offline, that its frame,
 simulation and instancing numbers read as numbers rather than dashes, that zero
