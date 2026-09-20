@@ -364,6 +364,22 @@ This is the most under-used idea in the genre and the most promising.
 - **Sweet chestnut flour** — bread from trees where grain will not grow. A forest that
   feeds a settlement the way a field would.
 
+**Preservation as temporal logistics**
+
+The most useful framing to come out of collecting these. Cheese, salt fish, smoked meat,
+ale, cider, **chuno** (Andean freeze-dried potato, kept for years), and ice are not
+upgrades to their fresh forms — they are **batteries**. Every other logistics idea in this
+design moves goods through *space*; these move goods through *time*.
+
+If a calendar ever lands, this becomes the second logistics system, and the goods for it
+are already sitting in the resource table.
+
+- **Ice house** — cut ice in winter, pack it underground in straw, and have cold storage
+  all summer. Winter produces a resource whose entire payoff is in another season. The
+  cleanest single illustration of the idea.
+- Milk spoils in a day; cheese keeps for a year. The dairy is not a flavor building, it is
+  a storage building that happens to change the good's name.
+
 **Logistics**
 
 - **Bodger** — an itinerant woodworker who turned chair legs on a pole lathe *in the wood
