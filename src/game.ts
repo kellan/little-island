@@ -7,7 +7,7 @@
 import './style.css';
 import {
   advance, alpha, createSimulation, createWorld, deserialize, elapsedSeconds, enqueue,
-  jobForTree, openJobs, serialize, tick, type SimEvent,
+  jobForSite, openJobs, serialize, tick, type SimEvent,
 } from './sim/index.ts';
 import { IslandScene } from './scene.ts';
 
@@ -58,13 +58,13 @@ canvas.addEventListener('pointermove',event=>{
   if(event.buttons)return;
   const id=view.pick(event.clientX,event.clientY);view.hovered=id;canvas.style.cursor=id===null?'grab':'pointer';
   const tip=$('#tooltip');tip.hidden=id===null;
-  if(id!==null){$('#tooltip-text').textContent=jobForTree(sim.world,id)?'Click to call it off':'Select to gather';tip.style.left=`${Math.min(innerWidth-190,event.clientX+18)}px`;tip.style.top=`${event.clientY-44}px`;}
+  if(id!==null){$('#tooltip-text').textContent=jobForSite(sim.world,id)?'Click to call it off':'Select to gather';tip.style.left=`${Math.min(innerWidth-190,event.clientX+18)}px`;tip.style.top=`${event.clientY-44}px`;}
 });
 canvas.addEventListener('pointerleave',()=>{$('#tooltip').hidden=true;view.hovered=null;});
 canvas.addEventListener('pointerup',event=>{
   if(event.button!==0||Math.hypot(event.clientX-down.x,event.clientY-down.y)>6)return;
   const treeId=view.pick(event.clientX,event.clientY);if(treeId===null)return;
-  enqueue(sim,jobForTree(sim.world,treeId)?{kind:'cancel-fell',treeId}:{kind:'order-fell',treeId});
+  enqueue(sim,jobForSite(sim.world,treeId)?{kind:'cancel-fell',siteId:treeId}:{kind:'order-fell',siteId:treeId});
 });
 
 function setPause(){paused=!paused;$('#pause').innerHTML=svg(paused?'play':'pause');$('#pause').setAttribute('aria-label',paused?'Resume simulation':'Pause simulation');$('#pause').title=paused?'Resume simulation':'Pause simulation';$('#pause').classList.toggle('active',paused);}
@@ -78,7 +78,7 @@ $('#confirm-reset').onclick=()=>{sim.world=createWorld();sim.accumulator=0;view.
 window.addEventListener('keydown',event=>{if(event.code==='Space'&&!help.open&&!reset.open&&!(event.target instanceof HTMLButtonElement)){event.preventDefault();setPause();}if(event.key==='Escape'){$('#tooltip').hidden=true;}});
 window.addEventListener('pagehide',save);setInterval(save,5000);
 
-const REJECTIONS={'unknown-tree':'That one is out of reach.','already-felled':'That tree is already down.','already-ordered':'Already on the list.','queue-full':'That is plenty of work for one pair of hands.'} as const;
+const REJECTIONS={'unknown-site':'That one is out of reach.','already-spent':'That tree is already down.','already-ordered':'Already on the list.','queue-full':'That is plenty of work for one pair of hands.'} as const;
 
 /* Events, not state diffs, drive sound and messages. */
 function react(events:SimEvent[]){
@@ -86,8 +86,8 @@ function react(events:SimEvent[]){
     if(event.kind==='order-queued'){note(440);if(paused)toast('Noted. Press play when you’re ready.');}
     else if(event.kind==='order-cancelled'){note(392,.1);toast('Called off. No harm done.');}
     else if(event.kind==='order-rejected')toast(REJECTIONS[event.reason]);
-    else if(event.kind==='chop-swing')note(150,.05);
-    else if(event.kind==='tree-felled')note(196,.22);
+    else if(event.kind==='work-stroke')note(150,.05);
+    else if(event.kind==='site-spent')note(196,.22);
     else if(event.kind==='ware-delivered'){note(659,.25);toast(event.total===1?'Your first log. Every little world starts somewhere.':`+1 log · ${event.total} in the pile`);save();}
   }
 }
@@ -96,7 +96,7 @@ function describe():string{
   const villager=sim.world.villagers[0];
   if(paused)return 'Enjoying a quiet moment';
   if(villager.carrying)return 'Bringing a log home';
-  if(villager.activity.kind==='chop')return 'Chop, chop. Making progress.';
+  if(villager.activity.kind==='work')return 'Chop, chop. Making progress.';
   if(villager.activity.kind==='travel')return villager.activity.purpose==='roam'?'Having a wander':'On the way to a tree';
   return 'Taking it all in';
 }

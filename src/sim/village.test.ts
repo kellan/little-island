@@ -9,7 +9,7 @@ import { tickTimes } from './engine.ts';
 import { deserialize, serialize } from './serialize.ts';
 import { HOME } from './terrain.ts';
 import { BUILDINGS, DAY_SECONDS } from './tuning.ts';
-import { addBuilding, addVillager, createWorld, findBuilding, hasRoom, hashWorld, heldIn, hire, secondsToTicks, standingTrees } from './world.ts';
+import { addBuilding, addVillager, createWorld, findBuilding, hasRoom, hashWorld, heldIn, hire, secondsToTicks, standingTrees, tasksFor, wantsOf } from './world.ts';
 import type { Building, SimEvent, World } from './types.ts';
 
 const rules = VILLAGE.rules;
@@ -45,7 +45,7 @@ describe('a day at the lumberjack hut', () => {
   it('fells a tree in range, leaves a log, hauls it back and stores it', () => {
     const { world, hut } = withHut();
     const events = until(world, w => heldIn(findBuilding(w, hut.id)!) > 0);
-    expect(kinds(events)).toEqual(expect.arrayContaining(['shift-started', 'tree-felled', 'ware-dropped', 'ware-collected', 'ware-stored']));
+    expect(kinds(events)).toEqual(expect.arrayContaining(['shift-started', 'site-spent', 'ware-dropped', 'ware-collected', 'ware-stored']));
     const order = kinds(events);
     expect(order.indexOf('ware-dropped')).toBeLessThan(order.indexOf('ware-collected'));
     expect(order.indexOf('ware-collected')).toBeLessThan(order.indexOf('ware-stored'));
@@ -58,7 +58,7 @@ describe('a day at the lumberjack hut', () => {
     const { world, hut } = withHut(2);
     const inRange = standingTrees(world).filter(tree => Math.hypot(tree.x - hut.x, tree.z - hut.z) <= hut.radius).map(tree => tree.id);
     until(world, w => !hasRoom(findBuilding(w, hut.id)!));
-    const felled = world.trees.filter(tree => tree.state === 'felled').map(tree => tree.id);
+    const felled = world.sites.filter(site => site.amount <= 0).map(site => site.id);
     expect(felled).toHaveLength(2);
     for (const id of felled) expect(inRange).toContain(id);
   });
@@ -72,7 +72,7 @@ describe('a day at the lumberjack hut', () => {
     const after = run(world, 900);
     expect(heldIn(hut)).toBe(3);
     expect(world.stats.treesFelled).toBe(3);
-    expect(kinds(after)).not.toContain('tree-felled');
+    expect(kinds(after)).not.toContain('site-spent');
     expect(world.villagers[0].carrying).toBeNull();
   });
 
@@ -117,10 +117,12 @@ function withMill(): { world: World; hut: Building; mill: Building } {
 }
 
 describe('the sawmill', () => {
-  it('is built from data, recipe and all', () => {
+  it('is built from data, tasks and all', () => {
     const { mill } = withMill();
-    expect(mill.recipe).toEqual({ consumes: { ware: 'log', amount: 1 }, produces: { ware: 'plank', amount: 1 }, seconds: 5 });
-    expect(mill.wants).toEqual({ log: 3 });
+    expect(tasksFor(mill).map(task => task.id)).toEqual(['saw']);
+    expect(tasksFor(mill)[0]).toMatchObject({ takes: [{ ware: 'log', amount: 1 }], yields: [{ ware: 'plank', amount: 1, to: 'store' }] });
+    // The input queue is derived from the task, not written down twice.
+    expect(wantsOf(mill)).toEqual({ log: 3 });
     expect(mill.tool).toBe('saw');
   });
 
@@ -155,8 +157,8 @@ describe('the sawmill', () => {
     let sawyerChopped = false, lumberjackCrafted = false;
     for (let i = 0; i < 4000; i++) {
       run(world, 1);
-      if (sawyer.activity.kind === 'chop') sawyerChopped = true;
-      if (world.villagers[0].activity.kind === 'craft') lumberjackCrafted = true;
+      if (sawyer.activity.kind === 'work' && sawyer.activity.task === 'fell') sawyerChopped = true;
+      if (world.villagers[0].activity.kind === 'work' && world.villagers[0].activity.task === 'saw') lumberjackCrafted = true;
     }
     expect(sawyerChopped).toBe(false);
     expect(lumberjackCrafted).toBe(false);
@@ -182,7 +184,7 @@ describe('the sawmill', () => {
 
   it('survives a save taken mid-recipe', () => {
     const { world, mill } = withMill();
-    until(world, w => w.villagers.some(villager => villager.activity.kind === 'craft'), 12000);
+    until(world, w => w.villagers.some(villager => villager.activity.kind === 'work'), 12000);
     const restored = deserialize(serialize(world))!;
     expect(restored).toEqual(world);
     run(world, 600);

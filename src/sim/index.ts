@@ -18,8 +18,10 @@ export type { Violation } from './invariants.ts';
 export { HOME, distance, elevation, onLand } from './terrain.ts';
 export { nextRandom } from './rng.ts';
 export {
-  activeJobs, addBuilding, addVillager, createWorld, dropWare, elapsedSeconds, findBuilding,
-  findJob, findPile, findTree, findVillager, canCraft, hasRoom, hashWorld, heldIn, hire, idleVillagers, jobForTree,
-  loosePiles, openJobs, secondsToTicks, shortOf, spare, standingTrees, totalWare, workplaceOf,
+  activeJobs, addBuilding, addSite, addVillager, availableSite, createWorld, dropWare,
+  elapsedSeconds, findBuilding, findJob, findPile, findSite, findVillager, hasRoom, hashWorld,
+  heldIn, hire, idleVillagers, jobForSite, liveSites, loosePiles, openJobs, roomForYield,
+  secondsToTicks, shortOf, spare, standingTrees, taskIsReady, tasksFor, totalWare, wantsOf,
+  workplaceOf,
 } from './world.ts';
 export * as tuning from './tuning.ts';

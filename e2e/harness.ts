@@ -49,7 +49,7 @@ export async function treeAt(page: Page, id: number) {
 
 /** Trees comfortably inside the viewport, so a click cannot miss. */
 export async function visibleTrees(page: Page, count: number) {
-  const ids = await page.evaluate(() => window.island.sim.world.trees.map((tree: any) => tree.id));
+  const ids = await page.evaluate(() => window.island.sim.world.sites.map((site: any) => site.id));
   const found: { id: number; x: number; y: number }[] = [];
   for (const id of ids) {
     const at = await treeAt(page, id);

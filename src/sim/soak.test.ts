@@ -33,8 +33,8 @@ function meddler(seed: number) {
     const trees = standingTrees(world);
     if (roll < .55 || !trees.length) return;
     const tree = trees[Math.floor(nextRandom(state) * trees.length)];
-    if (roll < .85) world.inbox.push({ kind: 'order-fell', treeId: tree.id });
-    else if (roll < .95) world.inbox.push({ kind: 'cancel-fell', treeId: tree.id });
+    if (roll < .85) world.inbox.push({ kind: 'order-fell', siteId: tree.id });
+    else if (roll < .95) world.inbox.push({ kind: 'cancel-fell', siteId: tree.id });
     else world.inbox.push({ kind: 'cancel-all' });
   };
 }

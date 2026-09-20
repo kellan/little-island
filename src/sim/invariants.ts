@@ -8,6 +8,7 @@
  * a test, and available from the terminal as `check`.
  */
 import { heldIn } from './world.ts';
+import { TASKS } from './tuning.ts';
 import { WARES, type WareId, type World, type SimEvent } from './types.ts';
 
 export type Violation = { invariant: string; detail: string };
@@ -32,7 +33,6 @@ export function ledger(events: SimEvent[]): Record<WareId, number> {
   const delta = Object.fromEntries(WARES.map(ware => [ware, 0])) as Record<WareId, number>;
   for (const event of events) {
     if (event.kind === 'ware-dropped') delta[event.ware] += 1;
-    else if (event.kind === 'ware-gathered') delta[event.ware] += event.amount;
     else if (event.kind === 'ware-made') delta[event.ware] += event.amount;
     else if (event.kind === 'ware-used') delta[event.ware] -= event.amount;
   }
@@ -80,18 +80,19 @@ export function checkWorld(world: World): Violation[] {
     if (worker.jobId !== job.id) fail('jobs-and-workers-agree', `job ${job.id} thinks ${worker.name} is on it, and they are on ${worker.jobId}`);
   }
   for (const job of live) {
-    const missing = job.kind === 'fell' ? !world.trees.some(tree => tree.id === job.treeId)
+    const missing = job.kind === 'task' ? job.siteId !== null && !world.sites.some(site => site.id === job.siteId)
       : job.kind === 'haul' ? !world.piles.some(pile => pile.id === job.pileId) && !villagers.get(job.assignee ?? -1)?.carrying
       : !world.buildings.some(b => b.id === job.from) || !world.buildings.some(b => b.id === job.to);
     if (missing) fail('jobs-point-at-something', `live ${job.kind} job ${job.id} has no target`);
   }
 
-  // A claim on a tree or a pile means somebody is actually on their way.
-  for (const tree of world.trees) {
-    if (tree.reservedBy === null) continue;
-    if (!villagers.has(tree.reservedBy)) fail('reservations-are-mutual', `tree ${tree.id} is claimed by villager ${tree.reservedBy}, who does not exist`);
-    else if (!live.some(job => job.kind === 'fell' && job.treeId === tree.id && job.assignee === tree.reservedBy)) {
-      fail('reservations-are-mutual', `tree ${tree.id} is claimed by ${tree.reservedBy} with no live job to match`);
+  // A claim on a site or a pile means somebody is actually on their way.
+  for (const site of world.sites) {
+    if (!whole(site.amount)) fail('ware-counts-are-whole', `site ${site.id} has ${site.amount} left`);
+    if (site.reservedBy === null) continue;
+    if (!villagers.has(site.reservedBy)) fail('reservations-are-mutual', `site ${site.id} is claimed by villager ${site.reservedBy}, who does not exist`);
+    else if (!live.some(job => job.kind === 'task' && job.siteId === site.id && job.assignee === site.reservedBy)) {
+      fail('reservations-are-mutual', `site ${site.id} is claimed by ${site.reservedBy} with no live job to match`);
     }
   }
   for (const pile of world.piles) {
@@ -121,8 +122,9 @@ export function checkWorld(world: World): Violation[] {
     if (![villager.x, villager.z, villager.facing].every(Number.isFinite)) fail('everyone-is-somewhere', `${villager.name} is at ${villager.x}, ${villager.z}`);
     if (Math.abs(villager.x) > 25 || Math.abs(villager.z) > 22) fail('everyone-is-somewhere', `${villager.name} has left the island at ${villager.x.toFixed(1)}, ${villager.z.toFixed(1)}`);
     const activity = villager.activity;
-    if (activity.kind === 'chop' && !world.trees.some(tree => tree.id === activity.treeId)) fail('activities-make-sense', `${villager.name} is chopping tree ${activity.treeId}, which does not exist`);
-    if (activity.kind === 'craft' && !world.buildings.some(b => b.id === activity.buildingId)) fail('activities-make-sense', `${villager.name} is working at building ${activity.buildingId}, which does not exist`);
+    if (activity.kind === 'work' && activity.siteId !== null && !world.sites.some(site => site.id === activity.siteId)) fail('activities-make-sense', `${villager.name} is working site ${activity.siteId}, which does not exist`);
+    if (activity.kind === 'work' && activity.buildingId !== null && !world.buildings.some(b => b.id === activity.buildingId)) fail('activities-make-sense', `${villager.name} is working at building ${activity.buildingId}, which does not exist`);
+    if (activity.kind === 'work' && !TASKS[activity.task]) fail('activities-make-sense', `${villager.name} is doing "${activity.task}", which is not a task`);
     if (activity.kind === 'travel' && ![activity.to.x, activity.to.z].every(Number.isFinite)) fail('activities-make-sense', `${villager.name} is walking to nowhere`);
   }
 

@@ -163,10 +163,10 @@ not have to be answered before this work starts.
 
 ## The order I would build it
 
-1. **Sites and tasks.** Pure refactor: `Tree` becomes a site, the six rules above
-   collapse into four, the lumberjack and the sawmill become rows in the building
-   table. No new behaviour, and the 58 simulation tests plus the browser suite
-   must stay green throughout.
+1. ~~**Sites and tasks.**~~ **Done.** `Tree` is now a site, the work rules
+   collapsed into `pick-a-task` / `work` / `finish-work`, and the lumberjack and
+   the sawmill are rows in a task table. The village rulebook went from 24 rules
+   to 22 while gaining the ability to hold any number of building types.
 2. **A forager's hut**, with a patch that depletes and regrows. The proof: a third
    building type that costs zero new rules, and the first resource you can run out
    of locally.

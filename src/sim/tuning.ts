@@ -1,3 +1,5 @@
+import type { SiteKind, WareId } from './types.ts';
+
 /**
  * Every number a designer would want to nudge, in one place. The rules read these;
  * they never hide constants of their own.
@@ -42,25 +44,64 @@ export const TREE_COUNT = 37;
 export const DOOR_REACH = .6;
 
 /**
- * Buildings are data. A new building is an entry here plus, at most, one rule —
- * which is the whole point of declaring recipes rather than writing them.
+ * A task is the one shape all work takes: optionally a place in the world, the
+ * wares it takes from the building's own store, how long it lasts, and what it
+ * leaves behind. Felling a tree, sawing a plank, foraging a patch and sowing a
+ * field are all rows in this table rather than rules of their own.
+ */
+export type TaskSpec = {
+  id: string;
+  /** Work on a site within the building's radius, taking this much of it. */
+  site?: { kind: SiteKind; take: number };
+  /** Wares consumed from the building's store. Several means a recipe with several inputs. */
+  takes?: readonly { ware: WareId; amount: number }[];
+  seconds: number;
+  /** Work on a bigger site takes proportionally longer. */
+  scaleWithSite?: boolean;
+  /**
+   * What the work produces. `ground` leaves it where the work happened, for
+   * somebody to fetch; `store` puts it straight into the building, which only
+   * makes sense for work done at the bench.
+   */
+  yields?: readonly { ware: WareId; amount: number; to: 'ground' | 'store' }[];
+};
+
+export const TASKS: Record<string, TaskSpec> = {
+  fell: {
+    id: 'fell',
+    site: { kind: 'tree', take: 1 },
+    seconds: CHOP_SECONDS,
+    scaleWithSite: true,
+    yields: [{ ware: 'log', amount: 1, to: 'ground' }],
+  },
+  saw: {
+    id: 'saw',
+    takes: [{ ware: 'log', amount: 1 }],
+    seconds: 5,
+    yields: [{ ware: 'plank', amount: 1, to: 'store' }],
+  },
+};
+
+/**
+ * Buildings are data. A new one is an entry here plus, at most, one new task —
+ * which is the whole point of declaring work rather than writing it.
  */
 export const BUILDINGS = {
   'lumberjack-hut': {
     capacity: 5,
-    /** How far it sends its worker for trees. Zero for a building that works indoors. */
+    /** How far it sends its worker for sites. Zero for a building that works indoors. */
     radius: 8,
     tool: 'axe',
-    wants: {},
-    recipe: null,
+    /** How many of each input to keep on hand. A hut takes nothing, so none. */
+    queue: 0,
+    tasks: ['fell'],
   },
   'sawmill': {
     capacity: 8,
     radius: 0,
     tool: 'saw',
-    /** Keeps three logs on hand; anything above that is spare for somebody else. */
-    wants: { log: 3 },
-    recipe: { consumes: { ware: 'log', amount: 1 }, produces: { ware: 'plank', amount: 1 }, seconds: 5 },
+    queue: 3,
+    tasks: ['saw'],
   },
 } as const;
 

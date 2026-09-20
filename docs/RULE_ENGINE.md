@@ -23,18 +23,20 @@ One noun per idea, used the same way in the code, the terminal and these docs.
 | Word | Means |
 | --- | --- |
 | **ware** | a thing that can be carried and stored: a **log**, a **stone** |
-| **tree** | a resource standing in the world; felling one yields a log |
+| **site** | a place work is done on: a **tree**, and later a patch, a shoal, a plot. Depletion is its `amount` going down |
+| **task** | the one shape all work takes, declared as data: a site, the wares it takes, how long, what it yields |
 | **pile** | a ware lying on the ground where it was dropped |
 | **building** | a place that gives out work and stores wares: a **lumberjack hut**, a **sawmill** |
 | **recipe** | what a building turns inputs into, declared as data: a log becomes a plank |
 | **worker** | a villager assigned to a building |
-| **job** | one piece of work with an owner. Kinds: **fell**, **haul** |
-| **activity** | what a villager is doing this tick: idle, travel, chop |
+| **job** | one piece of work with an owner. Kinds: **task**, **haul**, **supply** |
+| **activity** | what a villager is doing this tick: idle, travel, work |
 | **stock**, **capacity** | what a building holds, and the limit that stops its work |
 | **tool** | what a worker picks up at their building to start the day: an **axe**, a **saw** |
 
-Not used, to keep this honest: *task* (it is a job), *resource* for a carried
-thing (it is a ware), *harvest* (a tree is **felled**; the action is **chopping**).
+Not used, to keep this honest: *resource* for a carried thing (it is a ware),
+*harvest* (a tree is **felled**; the action is **chopping**). A **job** is an
+assignment with an owner; a **task** is the kind of work it is.
 
 ## A rule
 
@@ -64,30 +66,28 @@ rules run in the order they are listed. That ordering is the whole scheduler.
 | Phase | Rule | Book | What it does |
 | --- | --- | --- | --- |
 | intake | `accept-commands` | all | Applies the orders the player queued since the last tick, one at a time, in order. |
-| plan | `drop-impossible-jobs` | all | Cancels any job whose tree or ware has gone, freeing whoever was sent for it. |
+| plan | `drop-impossible-jobs` | all | Cancels any job whose site or ware has gone, freeing whoever was sent for it. |
 | plan | `clock-on` | village | Sends a villager with a workplace and no tool to their building to start the day. |
-| plan | `fetch-inputs` | village | A building short of an input asks for one from whichever building has a spare. |
-| plan | `start-crafting` | village | Sets a worker to their building's recipe once the inputs are in and there is room for the output. |
-| plan | `hut-picks-a-tree` | village | A lumberjack hut with room in its store sends its worker to the nearest tree in range. |
 | plan | `list-loose-wares` | hauling, village | Notices a ware lying on the ground and adds fetching it to the work list. |
+| plan | `fetch-inputs` | village | A building short of an input asks for one from whichever building has a spare. |
 | plan | `assign-jobs` | all | Hands the most pressing queued job to the nearest free villager whose role takes that work. |
+| plan | `pick-a-task` | village | A building with a free worker starts the first of its tasks that can be done right now. |
 | act | `walk` | all | Moves a travelling villager toward their destination and turns them to face it. |
-| act | `chop` | all | Advances a chop and emits one swing event per axe stroke, so sound and dust follow the work. |
-| act | `craft` | village | Advances the work at a bench: a recipe takes as long as it takes. | Advances a chop and emits one swing event per axe stroke, so sound and dust follow the work. |
+| act | `work` | all | Advances whatever work is in hand, and beats out a stroke so sound and dust can follow it. |
 | resolve | `take-tool` | village | Hands the villager the axe kept at their building; the working day starts here. |
-| resolve | `arrive-at-tree` | all | Turns a walk into work once the villager is within arm's reach of their tree. |
-| resolve | `fell-tree` | settlement | Drops the tree when the chop completes and puts a log in the villager's arms. |
-| resolve | `fell-tree-to-ground` | hauling, village | Drops the tree when the chop completes and leaves a log lying where it fell. |
+| resolve | `arrive-at-work` | all | Turns a walk into work once the villager reaches the site, or the bench. |
+| resolve | `finish-work` | all | Takes the inputs, spends the site, and puts what the task yields where it belongs. |
+| resolve | `shoulder-underfoot` | settlement | A villager with empty hands picks up what is lying at their feet and takes it home. |
 | resolve | `collect-ware` | hauling, village | Picks a ware up off the ground and sets off for the stockpile with it. |
 | resolve | `collect-from-store` | village | Takes a ware out of one building's store and sets off for the building that asked. |
 | resolve | `store-in-building` | village | Puts a carried ware into the worker's own building, up to its capacity. |
 | resolve | `store-delivery` | all | Adds a carried ware to the stockpile the moment the villager reaches the clearing. |
-| resolve | `finish-crafting` | village | Turns the inputs into the output when the recipe finishes, and puts it in the store. |
 | resolve | `finish-roaming` | all | Ends a wander at its destination and buys the villager a moment of rest. |
 | upkeep | `wander-when-idle` | all | Sends a rested villager with nothing left to do on a short stroll near the clearing. |
 | upkeep | `note-shortage` | village | Records what a building is waiting for, so a stalled workshop says why. |
 | upkeep | `new-day` | village | Turns the day over; tools stay at the building, so everyone clocks on again. |
 | upkeep | `forget-finished-jobs` | all | Prunes done and cancelled jobs a second after they end, keeping saved state small. |
+
 
 ## Two rulebooks
 
@@ -105,11 +105,16 @@ second list rather than a second codebase.
   the log back, and stops when the store is full. A sawmill asks the hut for logs
   and turns them into planks, and says so when it has none.
 
-`HAULING` differs from `SETTLEMENT` by one rule swapped and three added; `VILLAGE` adds ten more. `bin/play` can switch between
+`SETTLEMENT` and `HAULING` differ by two rules; `VILLAGE` adds nine more. What a
+building does is not among them: every building's work is a row in the task table
+in `tuning.ts`, and `pick-a-task`, `work` and `finish-work` are all the rules it
+takes to run any of them. `bin/play` can switch between
 them mid-session with `rulebook <id>`, which is the clearest demonstration that
 rules are data: the island does not change, only what happens on it.
 
-That is the entire game so far: twenty-four rules across three rulebooks, three wares, three kinds of job, two kinds of building.
+That is the entire game so far: twenty-two rules across three rulebooks, three
+wares, three kinds of job, two kinds of building — and adding a building no
+longer adds a rule.
 
 ## Watching it think
 

@@ -15,7 +15,7 @@ test('the island opens, and Robin is alive in it', async ({ page, baseURL }) => 
   const state = await page.evaluate(() => ({
     rulebook: window.island.sim.rulebook.id,
     villagers: window.island.sim.world.villagers.length,
-    trees: window.island.sim.world.trees.length,
+    trees: window.island.sim.world.sites.length,
   }));
   expect(state.rulebook, 'the browser runs the settlement rules').toBe('settlement');
   expect(state.villagers).toBe(1);
@@ -40,10 +40,10 @@ test('clicking a tree sends Robin to fell it and brings the log home', async ({ 
   await expect(page.locator('#world')).toHaveCSS('cursor', 'pointer');
 
   await clickAt(page, tree);
-  await page.waitForFunction(id => window.island.sim.world.jobs.some((job: any) => job.treeId === id && job.state === 'assigned'), tree.id);
+  await page.waitForFunction(id => window.island.sim.world.jobs.some((job: any) => job.siteId === id && job.state === 'assigned'), tree.id);
 
   // The renderer has to keep up with the simulation's own words for all this.
-  await page.waitForFunction(() => window.island.sim.world.villagers[0].activity.kind === 'chop', null, { timeout: 60_000 });
+  await page.waitForFunction(() => { const activity = window.island.sim.world.villagers[0].activity; return activity.kind === 'work' && activity.task === 'fell'; }, null, { timeout: 60_000 });
   await expect(page.locator('#work-progress')).toBeVisible();
   expect(await page.evaluate(() => window.island.view.workBadge()?.progress)).toBeGreaterThanOrEqual(0);
   await expect(page.locator('#status')).toHaveText('Chop, chop. Making progress.');
@@ -54,7 +54,7 @@ test('clicking a tree sends Robin to fell it and brings the log home', async ({ 
   await logsHome(page, 1);
   await expect(page.locator('#log-count')).toHaveText('1');
   await expect(page.locator('#toast')).toContainText('Your first log');
-  expect(await page.evaluate(id => window.island.sim.world.trees.find((t: any) => t.id === id).state, tree.id)).toBe('felled');
+  expect(await page.evaluate(id => window.island.sim.world.sites.find((site: any) => site.id === id).amount, tree.id)).toBe(0);
   expect(problems).toEqual([]);
 });
 
@@ -71,7 +71,7 @@ test('orders queue up, and a marked tree can be called off', async ({ page }) =>
   await expect(page.locator('#tooltip-text')).toHaveText('Click to call it off');
   await clickAt(page, last);
   await expect(page.locator('#toast')).toContainText('Called off');
-  await page.waitForFunction(id => !window.island.sim.world.jobs.some((job: any) => job.treeId === id && job.state !== 'cancelled'), last.id);
+  await page.waitForFunction(id => !window.island.sim.world.jobs.some((job: any) => job.siteId === id && job.state !== 'cancelled'), last.id);
 });
 
 test('the work list survives a reload', async ({ page }) => {

@@ -46,8 +46,8 @@ describe('clock', () => {
   it('reaches the same world whether frames are smooth or ragged', () => {
     const smooth = createSimulation(createWorld(7));
     const ragged = createSimulation(createWorld(7));
-    enqueue(smooth, { kind: 'order-fell', treeId: 3 });
-    enqueue(ragged, { kind: 'order-fell', treeId: 3 });
+    enqueue(smooth, { kind: 'order-fell', siteId: 3 });
+    enqueue(ragged, { kind: 'order-fell', siteId: 3 });
     for (let i = 0; i < 600; i++) advance(smooth, 1 / 60);
     for (const slice of Array.from({ length: 100 }, (_, i) => (i % 5) * .02 + .02)) advance(ragged, slice);
     while (ragged.world.tick < smooth.world.tick) tick(ragged.world);
@@ -71,7 +71,7 @@ describe('determinism', () => {
       const events: SimEvent[] = [];
       for (const [at, treeId] of [[0, 2], [40, 5], [900, 8]] as const) {
         while (world.tick < at) events.push(...tick(world));
-        world.inbox.push({ kind: 'order-fell', treeId });
+        world.inbox.push({ kind: 'order-fell', siteId: treeId });
       }
       events.push(...tickTimes(world, 2400));
       return { hash: hashWorld(world), events };
@@ -86,7 +86,7 @@ describe('determinism', () => {
 describe('persistence', () => {
   it('restores a job in progress and continues into the identical future', () => {
     const world = createWorld();
-    world.inbox.push({ kind: 'order-fell', treeId: 1 });
+    world.inbox.push({ kind: 'order-fell', siteId: 1 });
     tickTimes(world, 200);
     const restored = deserialize(serialize(world))!;
     expect(restored).toEqual(world);
@@ -98,7 +98,7 @@ describe('persistence', () => {
 
   it('keeps orders queued during the save', () => {
     const world = createWorld();
-    world.inbox.push({ kind: 'order-fell', treeId: 4 });
+    world.inbox.push({ kind: 'order-fell', siteId: 4 });
     const restored = deserialize(serialize(world))!;
     expect(restored.inbox).toHaveLength(1);
     expect(kinds(tickTimes(restored, 1))).toEqual(['order-queued', 'job-assigned']);
@@ -115,11 +115,11 @@ describe('persistence', () => {
     for (const raw of broken) expect(deserialize(raw)).toBeNull();
 
     const dangling = createWorld();
-    dangling.jobs.push({ id: 9, kind: 'fell', treeId: 999, state: 'queued', assignee: null, priority: 0, createdTick: 0, finishedTick: null });
+    dangling.jobs.push({ id: 9, kind: 'task', task: 'fell', siteId: 999, buildingId: null, state: 'queued', assignee: null, priority: 0, createdTick: 0, finishedTick: null });
     expect(deserialize(serialize(dangling))).toBeNull();
 
     const badActivity = createWorld();
-    badActivity.villagers[0].activity = { kind: 'chop', treeId: 12345, progress: 0, duration: 1 };
+    badActivity.villagers[0].activity = { kind: 'work', task: 'fell', siteId: 12345, buildingId: null, progress: 0, duration: 1 };
     expect(deserialize(serialize(badActivity))).toBeNull();
   });
 });

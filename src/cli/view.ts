@@ -3,9 +3,9 @@
  * no node imports, nothing to stop a test rendering a frame and reading it.
  */
 import {
-  HOME, distance, elapsedSeconds, findBuilding, findPile, findTree, findVillager, heldIn,
-  hasRoom, jobForTree, loosePiles, onLand, standingTrees, totalWare, tuning,
-  type Building, type Job, type SimEvent, type Tree, type Villager, type WareId, type World,
+  HOME, distance, elapsedSeconds, findBuilding, findPile, findSite, findVillager, heldIn,
+  hasRoom, jobForSite, liveSites, loosePiles, onLand, standingTrees, tasksFor, totalWare, tuning,
+  type Building, type Job, type SimEvent, type Site, type Villager, type WareId, type World,
 } from '../sim/index.ts';
 
 export type Paint = (text: string) => string;
@@ -42,8 +42,8 @@ function compass(from: { x: number; z: number }, to: { x: number; z: number }): 
   return points[(Math.round(angle / (Math.PI / 4)) + 8) % 8];
 }
 
-export function label(tree: Tree): string {
-  return `${tree.kind === 0 ? 'fir' : 'oak'} #${tree.id}`;
+export function label(site: Site): string {
+  return `${site.variant === 0 ? 'fir' : 'oak'} #${site.id}`;
 }
 
 /** A building's short name: "hut", "sawmill". */
@@ -58,7 +58,7 @@ export function wareName(ware: WareId, amount = 1): string {
 
 /** What a job is for, in words: a numbered tree, or a ware on the ground. */
 export function jobTarget(world: World, job: Job): string {
-  if (job.kind === 'fell') return `#${job.treeId}`;
+  if (job.kind === 'task') return job.siteId === null ? `${job.task} at the bench` : `#${job.siteId}`;
   if (job.kind === 'supply') {
     const to = findBuilding(world, job.to);
     return `${wareName(job.ware)} for the ${to ? to.kind.replace('lumberjack-', '') : 'store'}`;
@@ -90,10 +90,10 @@ export function renderMap(world: World, paint: Palette): string {
     const col = column(x), r = row(z);
     if (col >= 0 && col < MAP_COLUMNS && r >= 0 && r < MAP_ROWS) cells[r][col] = glyph;
   };
-  for (const tree of world.trees) {
-    if (tree.state === 'felled') { put(tree.x, tree.z, paint.bark(GLYPH.stump)); continue; }
-    if (jobForTree(world, tree.id)) { put(tree.x, tree.z, paint.amber(GLYPH.marked)); continue; }
-    put(tree.x, tree.z, paint.leaf(tree.kind === 0 ? GLYPH.conifer : GLYPH.broadleaf));
+  for (const site of world.sites) {
+    if (site.amount <= 0) { put(site.x, site.z, paint.bark(GLYPH.stump)); continue; }
+    if (jobForSite(world, site.id)) { put(site.x, site.z, paint.amber(GLYPH.marked)); continue; }
+    put(site.x, site.z, paint.leaf(site.variant === 0 ? GLYPH.conifer : GLYPH.broadleaf));
   }
   for (const pile of world.piles) put(pile.x, pile.z, paint.bark(pile.ware === 'log' ? GLYPH.log : GLYPH.stone));
   put(world.stockpile.x, world.stockpile.z, paint.sand(GLYPH.home));
@@ -108,10 +108,11 @@ export function renderLegend(paint: Palette): string {
 
 export function describeVillager(world: World, villager: Villager): string {
   const activity = villager.activity;
-  if (activity.kind === 'chop') {
-    const tree = world.trees.find(t => t.id === activity.treeId);
+  if (activity.kind === 'work') {
+    const site = findSite(world, activity.siteId);
     const done = activity.progress / activity.duration;
-    return `chopping ${tree ? label(tree) : 'a tree'}  ${bar(done)} ${Math.round(done * 100)}%`;
+    const what = site ? `${activity.task === 'fell' ? 'chopping' : activity.task} ${label(site)}` : `${activity.task === 'saw' ? 'sawing' : activity.task} at the bench`;
+    return `${what}  ${bar(done)} ${Math.round(done * 100)}%`;
   }
   if (activity.kind === 'travel') {
     const away = distance(villager, activity.to).toFixed(1);
@@ -120,8 +121,8 @@ export function describeVillager(world: World, villager: Villager): string {
     if (activity.purpose === 'roam') return 'having a wander';
     const job = world.jobs.find(j => j.id === villager.jobId);
     if (activity.purpose === 'fetch') return `going to fetch ${job ? jobTarget(world, job) : 'a ware'}, ${away} away`;
-    const tree = job?.kind === 'fell' ? findTree(world, job.treeId) : undefined;
-    return `walking to ${tree ? label(tree) : 'work'}, ${away} away`;
+    const site = job?.kind === 'task' ? findSite(world, job.siteId) : undefined;
+    return `walking to ${site ? label(site) : 'work'}, ${away} away`;
   }
   const hut = villager.workplace === null ? undefined : findBuilding(world, villager.workplace);
   if (hut && villager.tool === null) return 'off the clock';
@@ -136,8 +137,12 @@ export function renderBuilding(world: World, building: Building, paint: Palette)
   const store = held === building.capacity ? paint.warn(`${held}/${building.capacity} full`) : `${held}/${building.capacity}`;
   const contents = Object.entries(building.stock).filter(([, count]) => count > 0).map(([ware, count]) => `${count} ${ware}${count === 1 ? '' : 's'}`).join(', ');
   const note = building.waiting ? paint.warn(`waiting for ${building.waiting}`)
-    : building.radius > 0 ? paint.dim(`${standingTrees(world).filter(tree => distance(tree, building) <= building.radius).length} trees in range`)
-    : building.recipe ? paint.dim(`${building.recipe.consumes.ware} \u2192 ${building.recipe.produces.ware}`) : '';
+    : building.radius > 0 ? paint.dim(`${standingTrees(world).filter(site => distance(site, building) <= building.radius).length} trees in range`)
+    : paint.dim(tasksFor(building).map(task => {
+      const takes = (task.takes ?? []).map(ingredient => ingredient.ware).join(' + ');
+      const makes = (task.yields ?? []).map(yielded => yielded.ware).join(' + ');
+      return takes && makes ? `${takes} \u2192 ${makes}` : task.id;
+    }).join(', '));
   return `${paint.bark(shortKind(building).padEnd(7))} ${paint.dim(`#${building.id}`)} ${(worker ? worker.name : paint.dim('nobody')).padEnd(8)} store ${store}${contents ? paint.dim(`  (${contents})`) : ''}  ${note}`;
 }
 
@@ -159,7 +164,7 @@ export function renderWares(world: World, paint: Palette): string {
 
 export function renderStatus(world: World, paint: Palette): string {
   const lines = [
-    `${paint.bold('Little Island')}  day ${world.day} ${clock(world)}   logs ${paint.bold(String(totalWare(world, 'log')))}   felled ${world.stats.treesFelled}   standing ${world.trees.filter(t => t.state === 'standing').length}${world.piles.length ? `   ${paint.bark(`${world.piles.length} on the ground`)}` : ''}`,
+    `${paint.bold('Little Island')}  day ${world.day} ${clock(world)}   logs ${paint.bold(String(totalWare(world, 'log')))}   felled ${world.stats.treesFelled}   standing ${liveSites(world, 'tree').length}${world.piles.length ? `   ${paint.bark(`${world.piles.length} on the ground`)}` : ''}`,
   ];
   for (const villager of world.villagers) {
     const role = villager.role === 'hand' ? '' : paint.dim(`${villager.role} `);
@@ -182,14 +187,14 @@ export function renderWorkList(world: World, paint: Palette): string {
 
 /** The trees worth naming: nearest first, standing only. */
 export function renderTrees(world: World, paint: Palette, limit = 10): string {
-  const standing = world.trees.filter(tree => tree.state === 'standing')
-    .map(tree => ({ tree, away: distance(tree, HOME) }))
+  const standing = liveSites(world, 'tree')
+    .map(site => ({ site, away: distance(site, HOME) }))
     .sort((a, b) => a.away - b.away)
     .slice(0, limit);
   if (!standing.length) return paint.dim('  not a tree left standing.');
-  return standing.map(({ tree, away }) => {
-    const marked = jobForTree(world, tree.id) ? paint.amber('  marked') : '';
-    return `  ${label(tree).padEnd(8)} ${away.toFixed(1).padStart(5)} away  ${compass(HOME, tree).padEnd(2)}${marked}`;
+  return standing.map(({ site, away }) => {
+    const marked = jobForSite(world, site.id) ? paint.amber('  marked') : '';
+    return `  ${label(site).padEnd(8)} ${away.toFixed(1).padStart(5)} away  ${compass(HOME, site).padEnd(2)}${marked}`;
   }).join('\n');
 }
 
@@ -198,8 +203,8 @@ export function renderRules(rules: readonly { id: string; phase: string; about: 
 }
 
 const REJECTION = {
-  'unknown-tree': 'there is no such tree',
-  'already-felled': 'that one is already down',
+  'unknown-site': 'there is nothing there',
+  'already-spent': 'that one is already done',
   'already-ordered': 'already on the list',
   'queue-full': 'that is plenty of work for now',
 } as const;
@@ -207,18 +212,18 @@ const REJECTION = {
 function sentence(world: World, event: SimEvent): string | null {
   const who = (id: number) => findVillager(world, id)?.name ?? 'someone';
   switch (event.kind) {
-    case 'order-queued': return `#${event.treeId} goes on the work list`;
-    case 'order-rejected': return `#${event.treeId} — ${REJECTION[event.reason]}`;
-    case 'order-cancelled': return `#${event.treeId} called off`;
+    case 'order-queued': return `#${event.siteId} goes on the work list`;
+    case 'order-rejected': return `#${event.siteId} — ${REJECTION[event.reason]}`;
+    case 'order-cancelled': return `#${event.siteId} called off`;
     case 'job-assigned': {
-      if (event.job === 'fell') return `${who(event.villagerId)} sets off for #${event.targetId}`;
+      if (event.job === 'task') return event.targetId < 0 ? `${who(event.villagerId)} sets to work` : `${who(event.villagerId)} sets off for #${event.targetId}`;
       if (event.job === 'supply') return `${who(event.villagerId)} goes to the ${shortKind(findBuilding(world, event.targetId))} to fetch it`;
       // By the time this is read the ware is often already picked up, hence "it".
       const pile = findPile(world, event.targetId);
       return `${who(event.villagerId)} goes to fetch ${pile ? wareName(pile.ware, pile.amount) : 'it'}`;
     }
-    case 'job-abandoned': return `${event.villagerId === null ? 'nobody' : who(event.villagerId)} gives up on ${event.job === 'fell' ? `#${event.targetId}` : 'a ware'}`;
-    case 'tree-felled': return `#${event.treeId} comes down`;
+    case 'job-abandoned': return `${event.villagerId === null ? 'nobody' : who(event.villagerId)} gives up on ${event.job === 'task' ? `#${event.targetId}` : 'a ware'}`;
+    case 'site-spent': return `#${event.siteId} comes down`;
     case 'ware-dropped': return `${wareName(event.ware)} is left lying where it fell`;
     case 'ware-collected': return `${who(event.villagerId)} picks up ${wareName(event.ware, event.amount)}`;
     case 'ware-delivered': return `${wareName(event.ware, event.amount)} ${event.amount === 1 ? 'reaches' : 'reach'} the clearing — ${event.ware} ${event.total}`;
@@ -242,9 +247,8 @@ function sentence(world: World, event: SimEvent): string | null {
       const shop = findBuilding(world, event.buildingId);
       return `the ${shortKind(shop)} is waiting for ${wareName(event.ware)}`;
     }
-    case 'ware-gathered': return `${who(event.villagerId)} shoulders ${wareName(event.ware, event.amount)}`;
     case 'ware-used': return null; // Implied by what the building turns out.
-    case 'chop-swing': return null; // Counted, not narrated one swing at a time.
+    case 'work-stroke': return null; // Counted, not narrated one stroke at a time.
   }
 }
 
@@ -259,7 +263,7 @@ export function renderEvents(world: World, events: SimEvent[], paint: Palette): 
     swings.clear();
   };
   for (const event of events) {
-    if (event.kind === 'chop-swing') {
+    if (event.kind === 'work-stroke') {
       const run = swings.get(event.villagerId) ?? { count: 0, tick: event.tick };
       swings.set(event.villagerId, { count: run.count + 1, tick: run.tick });
       continue;

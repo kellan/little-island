@@ -78,7 +78,7 @@ function run(count: number): SimEvent[] {
     if (tracing === 'off') { collected.push(...events); continue; }
     if (steps.length) say(`  ${paint.dim(`tick ${sim.world.tick}`)}\n${steps.join('\n')}`);
     // One tick holds at most one swing, so narrating them here is just noise.
-    const lines = view.renderEvents(sim.world, tracing === 'all' ? events : events.filter(event => event.kind !== 'chop-swing'), paint);
+    const lines = view.renderEvents(sim.world, tracing === 'all' ? events : events.filter(event => event.kind !== 'work-stroke'), paint);
     if (lines.length) say(lines.map(line => `    ${line}`).join('\n'));
   }
   return collected;
@@ -100,7 +100,7 @@ function settle(): void {
 function hasWork(world: World, building: { x: number; z: number; radius: number; capacity: number; stock: Record<string, number> }): boolean {
   const held = Object.values(building.stock).reduce((total, count) => total + count, 0);
   if (held >= building.capacity) return false;
-  return world.trees.some(tree => tree.state === 'standing' && Math.hypot(tree.x - building.x, tree.z - building.z) <= building.radius);
+  return world.sites.some(site => site.amount > 0 && Math.hypot(site.x - building.x, site.z - building.z) <= building.radius);
 }
 
 /** Work still to do: a job open, a ware in someone's arms, or one lying about. */
@@ -126,7 +126,7 @@ const commands: Record<string, Command> = {
       for (const raw of args) {
         const id = Number(raw.replace('#', ''));
         if (!Number.isInteger(id)) { say(paint.warn(`  ${raw} is not a tree number`)); continue; }
-        enqueue(sim, { kind: 'order-fell', treeId: id });
+        enqueue(sim, { kind: 'order-fell', siteId: id });
       }
       settle();
     },
@@ -135,7 +135,7 @@ const commands: Record<string, Command> = {
     about: 'cancel <n|all> — call off an order',
     run: (args) => {
       if (args[0] === 'all') enqueue(sim, { kind: 'cancel-all' });
-      else if (args.length) for (const raw of args) enqueue(sim, { kind: 'cancel-fell', treeId: Number(raw.replace('#', '')) });
+      else if (args.length) for (const raw of args) enqueue(sim, { kind: 'cancel-fell', siteId: Number(raw.replace('#', '')) });
       else return say(paint.dim('  cancel which one? a tree number, or all'));
       settle();
     },
@@ -290,7 +290,7 @@ function perform(line: string): void {
 }
 
 say();
-say(`${paint.bold('Little Island')} ${paint.dim(`— a settlement you type at. seed ${origin}, ${sim.world.trees.length} trees.`)}`);
+say(`${paint.bold('Little Island')} ${paint.dim(`— a settlement you type at. seed ${origin}, ${sim.world.sites.length} trees.`)}`);
 say(paint.dim(`help for commands. trees, then chop 0, then until.`));
 say(paint.dim(`rules: ${sim.rulebook.id} \u2014 ${sim.rulebook.about}`));
 say();

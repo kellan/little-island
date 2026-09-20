@@ -91,14 +91,14 @@ export class IslandScene {
   }
 
   buildTrees() {
-    for (const t of this.world.trees) {
+    for (const t of this.world.sites) {
       const group = new THREE.Group(); group.position.set(t.x, elevation(t.x, t.z), t.z); group.scale.setScalar(t.scale); group.userData.treeId = t.id; this.scene.add(group); this.treeGroups.set(t.id, group);
       const stump = mesh(new THREE.CylinderGeometry(.17, .23, .25, 7), bark, group, 0, .125, 0); mesh(new THREE.CircleGeometry(.16, 7), barkLight, stump, 0, .127, 0).rotation.x = -Math.PI / 2;
       const crown = new THREE.Group(); group.add(crown); this.treeCrowns.set(t.id, crown);
       mesh(new THREE.CylinderGeometry(.12, .2, 1.7, 7), bark, crown, 0, .9, 0);
-      if (t.kind === 0) { for (let j = 0; j < 3; j++) { const c = mesh(new THREE.ConeGeometry(1.04 - j * .2, 1.7 - j * .22, 7), leaf[(t.id + j) % 3], crown, 0, 1.7 + j * .66, 0); c.rotation.y = j * .6; } }
+      if (t.variant === 0) { for (let j = 0; j < 3; j++) { const c = mesh(new THREE.ConeGeometry(1.04 - j * .2, 1.7 - j * .22, 7), leaf[(t.id + j) % 3], crown, 0, 1.7 + j * .66, 0); c.rotation.y = j * .6; } }
       else { for (let j = 0; j < 4; j++) { const c = mesh(new THREE.IcosahedronGeometry(.97, 1), leaf[(t.id + j) % 4], crown, Math.sin(j * 2.2) * .43, 2.05 + (j === 3 ? .57 : 0), Math.cos(j * 2.2) * .4); c.scale.y = 1.08; } }
-      group.traverse(o => { if (o instanceof THREE.Mesh) { o.userData.treeId = t.id; this.pickables.push(o); } }); crown.visible = t.state === 'standing';
+      group.traverse(o => { if (o instanceof THREE.Mesh) { o.userData.treeId = t.id; this.pickables.push(o); } }); crown.visible = t.amount > 0;
     }
   }
 
@@ -136,7 +136,7 @@ export class IslandScene {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set((clientX - rect.left) / rect.width * 2 - 1, -(clientY - rect.top) / rect.height * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObjects(this.pickables).find(h => this.world.trees.find(t => t.id === h.object.userData.treeId)?.state === 'standing');
+    const hit = this.raycaster.intersectObjects(this.pickables).find(h => (this.world.sites.find(site => site.id === h.object.userData.treeId)?.amount ?? 0) > 0);
     return hit ? hit.object.userData.treeId as number : null;
   }
 
@@ -155,7 +155,7 @@ export class IslandScene {
 
     for (const villager of world.villagers) {
       const rig = this.rigFor(villager), activity = villager.activity;
-      const moving = activity.kind === 'travel', swinging = activity.kind === 'chop', carrying = !!villager.carrying;
+      const moving = activity.kind === 'travel', swinging = activity.kind === 'work' && activity.siteId !== null, carrying = !!villager.carrying;
       const at = this.placeOf(villager, alpha);
       rig.group.position.set(at.x, elevation(at.x, at.z), at.z); rig.group.rotation.y = villager.facing;
       const pace = moving ? activity.speed / tuning.WALK_SPEED : 0;
@@ -165,25 +165,25 @@ export class IslandScene {
       rig.leftArm.rotation.x = carrying ? -1.15 : moving ? -Math.sin(time * 15 * pace) * .5 : 0;
       rig.rightArm.rotation.x = swinging ? -1.2 + Math.sin(time * 9) * 1.2 : carrying ? -1.15 : moving ? Math.sin(time * 15 * pace) * .5 : 0;
       rig.axe.visible = !carrying; rig.carried.visible = carrying;
-      if (activity.kind === 'chop') { chopping.add(activity.treeId); const tree = world.trees.find(t => t.id === activity.treeId); if (tree) chopTarget = tree; }
+      if (activity.kind === 'work' && activity.siteId !== null) { chopping.add(activity.siteId); const site = world.sites.find(s => s.id === activity.siteId); if (site) chopTarget = site; }
     }
 
-    for (const tree of world.trees) {
-      const crown = this.treeCrowns.get(tree.id); if (!crown) continue;
-      crown.visible = tree.state === 'standing';
-      crown.rotation.z = Math.sin(realTime * 1.3 + tree.id) * .009;
-      if (chopping.has(tree.id)) crown.rotation.z += Math.max(0, Math.sin(time * 9)) * .025;
+    for (const site of world.sites) {
+      const crown = this.treeCrowns.get(site.id); if (!crown) continue;
+      crown.visible = site.amount > 0;
+      crown.rotation.z = Math.sin(realTime * 1.3 + site.id) * .009;
+      if (chopping.has(site.id)) crown.rotation.z += Math.max(0, Math.sin(time * 9)) * .025;
     }
 
     // A ring on every tree with an order against it, plus one under the cursor.
-    const ordered = world.jobs.flatMap(job => job.kind === 'fell' && (job.state === 'queued' || job.state === 'assigned') ? [job.treeId] : []);
+    const ordered = world.jobs.flatMap(job => job.kind === 'task' && job.siteId !== null && (job.state === 'queued' || job.state === 'assigned') ? [job.siteId] : []);
     this.orderRings.forEach((ring, index) => {
-      const tree = index < ordered.length ? world.trees.find(t => t.id === ordered[index]) : undefined;
-      ring.visible = !!tree && tree.state === 'standing';
+      const tree = index < ordered.length ? world.sites.find(site => site.id === ordered[index]) : undefined;
+      ring.visible = !!tree && tree.amount > 0;
       if (tree) { ring.position.set(tree.x, elevation(tree.x, tree.z) + .04, tree.z); ring.scale.setScalar(1 + Math.sin(realTime * 4 + index) * .04); }
     });
-    const hover = this.hovered === null ? undefined : world.trees.find(t => t.id === this.hovered);
-    this.hoverRing.visible = !!hover && hover.state === 'standing';
+    const hover = this.hovered === null ? undefined : world.sites.find(site => site.id === this.hovered);
+    this.hoverRing.visible = !!hover && hover.amount > 0;
     if (hover) { this.hoverRing.position.set(hover.x, elevation(hover.x, hover.z) + .05, hover.z); this.hoverRing.scale.setScalar(1.06 + Math.sin(realTime * 4) * .04); }
 
     this.dust.visible = !!chopTarget;
@@ -216,8 +216,8 @@ export class IslandScene {
 
   /** Screen position and progress of the villager currently swinging an axe. */
   workBadge(alpha = 1): WorkBadge | null {
-    const villager = this.world.villagers.find(v => v.activity.kind === 'chop');
-    if (!villager || villager.activity.kind !== 'chop') return null;
+    const villager = this.world.villagers.find(v => v.activity.kind === 'work');
+    if (!villager || villager.activity.kind !== 'work') return null;
     const at = this.placeOf(villager, alpha);
     const point = new THREE.Vector3(at.x, elevation(at.x, at.z) + 1.8, at.z).project(this.camera);
     return { x: (point.x * .5 + .5) * innerWidth, y: (-.5 * point.y + .5) * innerHeight, progress: Math.min(1, villager.activity.progress / villager.activity.duration) };

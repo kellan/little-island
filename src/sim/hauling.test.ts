@@ -14,7 +14,7 @@ const rules = HAULING.rules;
 const run = (world: World, count: number) => tickTimes(world, count, { rules });
 const kinds = (events: SimEvent[]) => events.map(event => event.kind);
 const ordering = (world: World, ...treeIds: number[]) => {
-  for (const treeId of treeIds) world.inbox.push({ kind: 'order-fell', treeId });
+  for (const treeId of treeIds) world.inbox.push({ kind: 'order-fell', siteId: treeId });
   return world;
 };
 const until = (world: World, done: (world: World) => boolean, limit = 4000) => {
@@ -25,10 +25,10 @@ const until = (world: World, done: (world: World) => boolean, limit = 4000) => {
 
 describe('wares on the ground', () => {
   it('leaves the log where the tree fell, and nobody is carrying it', () => {
-    const world = ordering(createWorld(), 0);
+    const world = ordering(createWorld(), 1);
     until(world, w => w.piles.length > 0);
     const [pile] = world.piles;
-    const tree = world.trees[0];
+    const tree = world.sites[0];
     expect(pile).toMatchObject({ ware: 'log', amount: 1, reservedBy: null });
     expect(Math.hypot(pile.x - tree.x, pile.z - tree.z)).toBe(0);
     expect(world.villagers[0].carrying).toBeNull();
@@ -37,9 +37,9 @@ describe('wares on the ground', () => {
   });
 
   it('notices the loose log, fetches it and stockpiles it', () => {
-    const world = ordering(createWorld(), 0);
+    const world = ordering(createWorld(), 1);
     const events = until(world, w => w.stockpile.stock.log > 0);
-    expect(kinds(events)).toEqual(expect.arrayContaining(['tree-felled', 'ware-dropped', 'ware-collected', 'ware-delivered']));
+    expect(kinds(events)).toEqual(expect.arrayContaining(['site-spent', 'ware-dropped', 'ware-collected', 'ware-delivered']));
     expect(kinds(events).indexOf('ware-dropped')).toBeLessThan(kinds(events).indexOf('ware-collected'));
     expect(world.piles).toHaveLength(0);
     expect(world.stockpile.stock.log).toBe(1);
@@ -66,7 +66,7 @@ describe('wares on the ground', () => {
   });
 
   it('will not let the player call off the settlement’s own errands', () => {
-    const world = ordering(createWorld(), 0);
+    const world = ordering(createWorld(), 1);
     until(world, w => w.piles.length > 0);
     run(world, 1);
     world.inbox.push({ kind: 'cancel-all' });
@@ -89,7 +89,7 @@ describe('wares on the ground', () => {
 
 describe('roles', () => {
   it('keeps a feller felling and a carrier carrying', () => {
-    const world = ordering(createWorld(), 0, 1);
+    const world = ordering(createWorld(), 1, 2);
     world.villagers[0].role = 'feller';
     const carrier = addVillager(world, 'Wren', HOME, 'carrier');
     until(world, w => w.stockpile.stock.log === 2, 6000);
@@ -99,18 +99,18 @@ describe('roles', () => {
   });
 
   it('never hands a carrier an axe', () => {
-    const world = ordering(createWorld(), 0);
+    const world = ordering(createWorld(), 1);
     world.villagers[0].role = 'carrier';
     run(world, 300);
     expect(world.jobs.some(job => job.state === 'assigned')).toBe(false);
-    expect(world.trees[0].state).toBe('standing');
+    expect(world.sites[0].amount).toBe(1);
   });
 });
 
 describe('the two rulebooks', () => {
   it('reach the same stockpile from the same orders', () => {
-    const settle = ordering(createWorld(), 3, 4);
-    const haul = ordering(createWorld(), 3, 4);
+    const settle = ordering(createWorld(), 4, 5);
+    const haul = ordering(createWorld(), 4, 5);
     for (let i = 0; i < 3000; i++) {
       tick(settle, { rules: SETTLEMENT.rules });
       tick(haul, { rules: HAULING.rules });
@@ -122,7 +122,7 @@ describe('the two rulebooks', () => {
   });
 
   it('is deterministic and survives a save with wares lying about', () => {
-    const world = ordering(createWorld(), 0, 1);
+    const world = ordering(createWorld(), 1, 2);
     until(world, w => w.piles.length > 0);
     const restored = deserialize(serialize(world))!;
     expect(restored).toEqual(world);

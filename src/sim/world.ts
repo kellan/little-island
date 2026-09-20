@@ -1,7 +1,7 @@
 import { nextRandom } from './rng.ts';
 import { HOME, distance, onLand } from './terrain.ts';
-import { BUILDINGS, ISLAND_SEED, TICK_SECONDS, TREE_COUNT } from './tuning.ts';
-import { emptyStock, type Building, type BuildingKind, type Job, type Role, type Tree, type TreeKind, type Vec2, type Villager, type WareId, type WarePile, type World } from './types.ts';
+import { BUILDINGS, ISLAND_SEED, TASKS, TICK_SECONDS, TREE_COUNT, type TaskSpec } from './tuning.ts';
+import { emptyStock, type Building, type BuildingKind, type Job, type Role, type Site, type SiteKind, type Vec2, type Villager, type WareId, type WarePile, type World } from './types.ts';
 
 /** Seconds of world time. Derived from whole ticks, so it can never drift. */
 export function elapsedSeconds(world: World): number {
@@ -14,11 +14,11 @@ export function secondsToTicks(seconds: number): number {
 
 export function createWorld(seed = ISLAND_SEED): World {
   const world: World = {
-    version: 5,
+    version: 6,
     tick: 0,
     day: 1,
     seed,
-    trees: [],
+    sites: [],
     villagers: [],
     buildings: [],
     piles: [],
@@ -28,18 +28,19 @@ export function createWorld(seed = ISLAND_SEED): World {
     nextVillagerId: 1,
     nextPileId: 1,
     nextBuildingId: 1,
+    nextSiteId: 1,
     inbox: [],
     stats: { treesFelled: 0, logsDelivered: 0, ordersQueued: 0 },
   };
   // Rejection sampling: inside the mainland ellipse, clear of the clearing, never crowding a neighbour.
-  for (let attempt = 0; attempt < 400 && world.trees.length < TREE_COUNT; attempt++) {
+  for (let attempt = 0; attempt < 400 && world.sites.length < TREE_COUNT; attempt++) {
     const x = (nextRandom(world) - .5) * 25, z = (nextRandom(world) - .5) * 20;
     if (!onLand(x, z)) continue;
     if (distance({ x, z }, HOME) < 4.6) continue;
-    if (world.trees.some(tree => distance(tree, { x, z }) < 2)) continue;
+    if (world.sites.some(site => distance(site, { x, z }) < 2)) continue;
     const scale = .8 + nextRandom(world) * .55;
-    const kind: TreeKind = nextRandom(world) > .32 ? 0 : 1;
-    world.trees.push({ id: world.trees.length, x, z, scale, kind, state: 'standing', reservedBy: null });
+    const variant = nextRandom(world) > .32 ? 0 : 1;
+    addSite(world, 'tree', { x, z }, { scale, variant });
   }
   addVillager(world, 'Robin', HOME);
   return world;
@@ -66,8 +67,39 @@ export function addVillager(world: World, name: string, at: Vec2, role: Role = '
   return villager;
 }
 
-export function findTree(world: World, id: number): Tree | undefined {
-  return world.trees.find(tree => tree.id === id);
+/** Put something in the world that work can be done on. */
+export function addSite(world: World, kind: SiteKind, at: Vec2, extra: { amount?: number; scale?: number; variant?: number } = {}): Site {
+  const site: Site = {
+    id: world.nextSiteId++, kind, x: at.x, z: at.z,
+    amount: extra.amount ?? 1, scale: extra.scale ?? 1, variant: extra.variant ?? 0, reservedBy: null,
+  };
+  world.sites.push(site);
+  return site;
+}
+
+export function findSite(world: World, id: number | null): Site | undefined {
+  return id === null ? undefined : world.sites.find(site => site.id === id);
+}
+
+/** Sites of a kind with something left to take. */
+export function liveSites(world: World, kind?: SiteKind): Site[] {
+  return world.sites.filter(site => site.amount > 0 && (kind === undefined || site.kind === kind));
+}
+
+/** The tasks a building can perform, in the order it tries them. */
+export function tasksFor(building: Building): TaskSpec[] {
+  return BUILDINGS[building.kind].tasks.map(id => TASKS[id]).filter(Boolean);
+}
+
+/** How many of each input a building keeps on hand: derived from its tasks, never authored. */
+export function wantsOf(building: Building): Partial<Record<WareId, number>> {
+  const queue = BUILDINGS[building.kind].queue;
+  const wants: Partial<Record<WareId, number>> = {};
+  if (!queue) return wants;
+  for (const task of tasksFor(building)) {
+    for (const ingredient of task.takes ?? []) wants[ingredient.ware] = Math.max(wants[ingredient.ware] ?? 0, ingredient.amount * queue);
+  }
+  return wants;
 }
 
 /** Raise a building. It does nothing until somebody works there. */
@@ -76,7 +108,7 @@ export function addBuilding(world: World, kind: BuildingKind, at: Vec2): Buildin
   const building: Building = {
     id: world.nextBuildingId++, kind, x: at.x, z: at.z,
     radius: type.radius, workerId: null, stock: emptyStock(), capacity: type.capacity,
-    wants: { ...type.wants }, recipe: type.recipe ? { ...type.recipe } : null, tool: type.tool, waiting: null,
+    tool: type.tool, waiting: null,
   };
   world.buildings.push(building);
   return building;
@@ -84,23 +116,44 @@ export function addBuilding(world: World, kind: BuildingKind, at: Vec2): Buildin
 
 /** What a building holds beyond what it wants to keep: free for anyone to fetch. */
 export function spare(building: Building, ware: WareId): number {
-  return Math.max(0, building.stock[ware] - (building.wants[ware] ?? 0));
+  return Math.max(0, building.stock[ware] - (wantsOf(building)[ware] ?? 0));
 }
 
 /** The input this building is short of, if any. */
 export function shortOf(building: Building): WareId | null {
-  for (const [ware, target] of Object.entries(building.wants) as [WareId, number][]) {
+  for (const [ware, target] of Object.entries(wantsOf(building)) as [WareId, number][]) {
     if (building.stock[ware] < target) return ware;
   }
   return null;
 }
 
 /** Can the worker run the recipe right now? */
-export function canCraft(building: Building): boolean {
-  const recipe = building.recipe;
-  if (!recipe) return false;
-  if (building.stock[recipe.consumes.ware] < recipe.consumes.amount) return false;
-  return heldIn(building) - recipe.consumes.amount + recipe.produces.amount <= building.capacity;
+/** Could this task be started right now, leaving aside whether there is a worker? */
+export function taskIsReady(world: World, building: Building | undefined, task: TaskSpec): boolean {
+  for (const ingredient of task.takes ?? []) {
+    if (!building || building.stock[ingredient.ware] < ingredient.amount) return false;
+  }
+  if (task.site && !availableSite(world, building, task)) return false;
+  return roomForYield(building, task);
+}
+
+/** The nearest unclaimed site this task could be performed on. */
+export function availableSite(world: World, building: Building | undefined, task: TaskSpec, near?: Vec2): Site | undefined {
+  if (!task.site) return undefined;
+  const from = near ?? building ?? HOME;
+  return liveSites(world, task.site.kind)
+    .filter(site => site.reservedBy === null && (!building || building.radius <= 0 || distance(site, building) <= building.radius))
+    .sort((a, b) => distance(a, from) - distance(b, from) || a.id - b.id)[0];
+}
+
+/** Is there space for what the task puts into the store? Ground yields need none. */
+export function roomForYield(building: Building | undefined, task: TaskSpec): boolean {
+  const made = (task.yields ?? []).reduce((total, yielded) => total + yielded.amount, 0);
+  if (!made) return true;
+  // Nobody's building: a player pointing at a tree is not held up by a full store.
+  if (!building) return true;
+  const taken = (task.takes ?? []).reduce((total, ingredient) => total + ingredient.amount, 0);
+  return heldIn(building) - taken + made <= building.capacity;
 }
 
 export function findBuilding(world: World, id: number | null): Building | undefined {
@@ -167,17 +220,17 @@ export function activeJobs(world: World): Job[] {
   return world.jobs.filter(job => job.state === 'queued' || job.state === 'assigned');
 }
 
-/** An outstanding order against this tree, if any. Used to make clicks a toggle. */
-export function jobForTree(world: World, treeId: number): Job | undefined {
-  return world.jobs.find(job => job.kind === 'fell' && job.treeId === treeId && (job.state === 'queued' || job.state === 'assigned'));
+/** An outstanding order against this site, if any. Used to make clicks a toggle. */
+export function jobForSite(world: World, siteId: number): Job | undefined {
+  return world.jobs.find(job => job.kind === 'task' && job.siteId === siteId && (job.state === 'queued' || job.state === 'assigned'));
 }
 
 export function idleVillagers(world: World): Villager[] {
   return world.villagers.filter(villager => villager.jobId === null && villager.carrying === null);
 }
 
-export function standingTrees(world: World): Tree[] {
-  return world.trees.filter(tree => tree.state === 'standing');
+export function standingTrees(world: World): Site[] {
+  return liveSites(world, 'tree');
 }
 
 /**
@@ -191,12 +244,12 @@ export function hashWorld(world: World): string {
   mix(world.tick); mix(world.day); mix(world.seed);
   for (const [ware, count] of Object.entries(world.stockpile.stock)) { mixText(ware); mix(count); }
   mix(world.stats.treesFelled); mix(world.stats.logsDelivered); mix(world.stats.ordersQueued);
-  for (const tree of world.trees) { mix(tree.id); mix(tree.x); mix(tree.z); mixText(tree.state); mix(tree.reservedBy ?? -1); }
+  for (const site of world.sites) { mix(site.id); mixText(site.kind); mix(site.x); mix(site.z); mix(site.amount); mix(site.reservedBy ?? -1); }
   for (const villager of world.villagers) {
     mix(villager.id); mix(villager.x); mix(villager.z); mix(villager.facing); mixText(villager.role);
     mixText(villager.activity.kind); mix(villager.jobId ?? -1); mix(villager.carrying?.amount ?? 0);
     mix(villager.workplace ?? -1); mixText(villager.tool ?? 'none');
-    if (villager.activity.kind === 'chop') mix(villager.activity.progress);
+    if (villager.activity.kind === 'work') { mix(villager.activity.progress); mixText(villager.activity.task); }
     if (villager.activity.kind === 'travel') { mix(villager.activity.to.x); mix(villager.activity.to.z); }
   }
   for (const building of world.buildings) {
@@ -204,6 +257,6 @@ export function hashWorld(world: World): string {
     for (const ware of Object.keys(building.stock).sort()) { mixText(ware); mix(building.stock[ware as WareId]); }
   }
   for (const pile of world.piles) { mix(pile.id); mixText(pile.ware); mix(pile.amount); mix(pile.x); mix(pile.z); mix(pile.reservedBy ?? -1); }
-  for (const job of world.jobs) { mix(job.id); mixText(job.kind); mix(job.kind === 'fell' ? job.treeId : job.kind === 'haul' ? job.pileId : job.to); mixText(job.state); mix(job.assignee ?? -1); }
+  for (const job of world.jobs) { mix(job.id); mixText(job.kind); mix(job.kind === 'task' ? job.siteId ?? -1 : job.kind === 'haul' ? job.pileId : job.to); mixText(job.state); mix(job.assignee ?? -1); }
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
