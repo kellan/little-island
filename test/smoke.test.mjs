@@ -69,6 +69,18 @@ describe('built site', () => {
     await page.close();
   });
 
+  it('takes zero counts from the URL, for an empty baseline to attribute against', async () => {
+    const { page, errors } = await openPage('/?lab&trees=0&agents=0');
+    await page.waitForSelector('#lab-world', { timeout: 20000 });
+    await page.waitForFunction(() => document.querySelector('#draws').textContent !== '—', null, { timeout: 30000 });
+    // Water and island only: no forest, no workers.
+    assert.equal(await page.locator('#draws').textContent(), '2');
+    assert.equal(await page.locator('#trees').inputValue(), '0');
+    assert.equal(await page.locator('#agents').inputValue(), '0');
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
   it('round trips saved state exactly from the panel', async () => {
     const { page } = await openPage('/?lab&scenario=soak&trees=200&agents=300');
     await page.waitForSelector('#lab-world', { timeout: 20000 });
