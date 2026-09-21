@@ -348,6 +348,48 @@ Listed plainly, because these are written down as settled there:
 13. **The eventual rationale for trade** — biome-locked scarcity → terroir and
     difference. (Trade is still deferred in both documents.)
 
+## What the fork looks like
+
+The prototype now wears this fork as a second dressing. Open the island with
+`?goblin`, or press the swap button beside the sound toggle; the choice is
+remembered. It is a **visual treatment only** — same rulebook, same seed, same
+trees, same save file, same Robin underneath — so it settles nothing above and is
+only here to be looked at and argued with.
+
+What each decision on screen is answering:
+
+- **Peat light and close fog.** Overcast, low contrast, the far shore hazed. The
+  brightest thing on the island is the ember under the camp pot, which is the
+  cozy instruction in one prop: dim and damp everywhere, warm where the goblins
+  are.
+- **Trees that cannot be felled.** Pillar 1. Twice the height of the bright
+  island's trees and no wider: the mass goes into a long bare trunk. Open ground
+  stays readable underneath, which matters because you play on it.
+- **Fungus as the crop, not the decoration.** Shelf fungus climbs the trunks,
+  toadstools ring the feet, and deadfall on the ground has something eating it.
+  A tree reads as food before it reads as timber.
+- **The decay layer, drawn.** The simulation has seeded `patch` and `bog` sites
+  since the forager work, and the bright island never drew either. The fork draws
+  them: mushroom beds on rotting logs, and peat pools with reeds on a wet bank.
+- **A worked-out stump grows the next crop.** When a tree's crown goes, brackets
+  and toadstools appear on the stump. The flagship chain — fungi on spent wood —
+  as a beat you can watch rather than a line in a design document.
+- **A settlement that is small and weak.** A covered pit rather than a granary
+  (goblins dig), a lean-to of three sticks, a drying rack, two hurdle panels, and
+  a fire. It should read as a well-run larder and not much else.
+- **An awkward load, not a heavy one.** Pillar 1 again. The carried log is longer
+  than the goblin is tall and does not shrink with her; she bends under it and
+  weaves, and the log stays level while she does. One goblin cannot be two, so
+  the pair carry is not shown — but the load is drawn as though it wanted them.
+- **Grumbling is the HUD.** Pillar 5. Every line of copy is themed, so the status
+  line says *Wedge. Mallet. Mutter. Repeat.* and a delivery toasts *One log. Took
+  the two of us, and there is only one of me.* No alert panel was added or needed.
+
+What it does **not** yet show, because the simulation has no such state: crews,
+comfort, mending, pigs and goats, ferments, or anyone but the one goblin. The
+dressing is deliberately confined to `src/theme.ts` and the branches in
+`src/scene.ts` that read it, so it stays cheap to throw away.
+
 ## Open questions
 
 - Does the decay-layer economy **replace** the human food ladder, or sit underneath it as a

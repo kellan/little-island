@@ -6,3 +6,46 @@
 :root{font-size:16px}.brand{font-size:17px;letter-spacing:2px}.brand small{font-size:10px;letter-spacing:1.2px}.chapter{top:112px;left:40px}.objective{margin:0;padding:12px 15px;background:#f7f4e9e8;border:1px solid #ffffffe0;border-radius:14px;max-width:350px;box-shadow:0 5px 30px #2b504710}.objective strong{font-size:14px}.objective span:not(.objective-icon){font-size:13px;color:#54684f}.day{display:none}.top-right>.divider{display:none}.resource>span{font-size:14px}.portrait{display:grid;place-items:center}.portrait svg{width:28px;height:28px;color:#738650}.villager-name{font-size:16px}.villager-name>span{font-size:10px}.villager-status{font-size:13px;color:#52624c;min-width:195px}.camera-hint{font-size:11px;letter-spacing:.4px;color:#365846}.speed{font-size:15px}.hint,.toast,.tree-tooltip{font-size:14px}.controls .icon-button,.focus-button{min-width:40px;min-height:40px}.work-progress{width:84px}.work-progress span{font-size:10px}dialog p{font-size:16px}dialog dl>div{font-size:14px}dialog .save-note{font-size:13px}.primary,.secondary{font-size:14px}.eyebrow{font-size:12px}.bottom{bottom:48px}.toast{bottom:150px}
 @media(max-width:760px){.topbar{left:18px;right:18px;top:18px}.brand{font-size:14px;letter-spacing:1px}.brand small{font-size:9px;max-width:170px;line-height:1.5}.brand-mark{display:none}.chapter{left:18px;top:89px}.objective{padding:10px 12px;max-width:300px}.objective strong{font-size:13px}.objective span:not(.objective-icon){font-size:12px}.bottom{left:14px;right:14px;bottom:42px;align-items:flex-end}.villager-card{gap:8px;padding:9px}.portrait,.villager-name>span,.card-divider{display:none}.villager-status{font-size:12px;min-width:0;max-width:156px;line-height:1.35}.villager-name{font-size:15px}.focus-button{display:grid;min-width:32px;padding:4px}.controls{padding:5px;gap:0}.controls .icon-button{min-width:32px;min-height:40px}.controls #reset{display:grid}.controls .divider{display:none}.controls #sound{display:none}.speed{min-width:30px;font-size:14px}.camera-hint{font-size:10px;letter-spacing:0;gap:6px}.resource>span{display:none}.toast{font-size:13px;bottom:130px}.top-right{padding:7px;gap:8px}}
 @media(max-width:400px){.villager-status{max-width:132px}.camera-hint span:last-child,.camera-hint i:last-of-type{display:none}.objective{max-width:280px}.brand small{max-width:145px}}
+
+/* The goblin fork (docs/GOBLINS.md), dressed. Colour only: every size, gap and
+   breakpoint above still owns the layout, so the fork cannot break the HUD's
+   responsive behaviour. Oatmeal panels and peat ink, with the ember colour used
+   for anything that means work is happening. */
+[data-theme=goblin]{color:#2f3527;background:#a9b09b}
+[data-theme=goblin] button:focus-visible,[data-theme=goblin] a:focus-visible{outline-color:#b07c2e}
+[data-theme=goblin] .vignette{background:linear-gradient(180deg,rgba(205,209,188,.3),transparent 26%,transparent 74%,rgba(31,38,26,.16));box-shadow:inset 0 0 170px #1d241a1f}
+[data-theme=goblin] .brand{color:#f2ecd8;text-shadow:0 1px 8px #2a3122a8}
+[data-theme=goblin] .brand-mark{border-color:#efe7d260}
+[data-theme=goblin] .top-right,[data-theme=goblin] .objective,[data-theme=goblin] .villager-card,[data-theme=goblin] .controls{background:#efe7d2ed;border-color:#fffaf0b0;box-shadow:0 8px 30px #1b23161f}
+[data-theme=goblin] .day small,[data-theme=goblin] .resource>span,[data-theme=goblin] .villager-name>span{color:#7a7560}
+[data-theme=goblin] .sun{color:#c7a74f}
+[data-theme=goblin] .divider,[data-theme=goblin] .card-divider{background:#c8c1a6}
+[data-theme=goblin] .resource svg{color:#8a6c38}
+[data-theme=goblin] .icon-button:hover,[data-theme=goblin] .focus-button:hover,[data-theme=goblin] .speed:hover,[data-theme=goblin] .active{background:#ded4b6}
+[data-theme=goblin] .objective-icon{background:#e3d9b8;border-color:#fffaf0a0}
+[data-theme=goblin] .objective-icon svg{color:#6e7a3c}
+[data-theme=goblin] .objective span:not(.objective-icon){color:#5c5b47}
+[data-theme=goblin] .portrait{background:#dcd5b4}
+[data-theme=goblin] .portrait svg{color:#6b7a3e}
+[data-theme=goblin] .villager-status{color:#575642}
+[data-theme=goblin] .villager-status i{background:#b2ab90}
+[data-theme=goblin] .villager-status i.working{background:#b07c2e}
+[data-theme=goblin] .focus-button{color:#7d7a5e}
+[data-theme=goblin] .hint{background:#e7e2c8a8;border-color:#fffaf058;color:#4e5340}
+[data-theme=goblin] .mouse-icon{border-color:#6d7159}[data-theme=goblin] .mouse-icon:after{background:#6d7159}
+[data-theme=goblin] .camera-hint{color:#e9e5cfb0}
+[data-theme=goblin] .tree-tooltip{background:#efe7d2;color:#4d5140;box-shadow:0 5px 16px #1d241a26}
+[data-theme=goblin] .work-progress span{color:#2f3527;text-shadow:0 1px #efe7d2}
+[data-theme=goblin] .work-progress>div{background:#efe7d2cc}
+[data-theme=goblin] .work-progress i{background:#b07c2e}
+[data-theme=goblin] .toast{background:#333a28ee;color:#f1ecd6}
+[data-theme=goblin] dialog{background:#efe7d2;border-color:#fffaf0;color:#3a4030;box-shadow:0 30px 120px #1b231650}
+[data-theme=goblin] dialog::backdrop{background:#1b231655}
+[data-theme=goblin] dialog p,[data-theme=goblin] dialog dd{color:#736e58}
+[data-theme=goblin] dialog dl,[data-theme=goblin] dialog dl>div{border-color:#d7cfb2}
+[data-theme=goblin] .eyebrow{color:#6a6b46}[data-theme=goblin] .eyebrow>span{background:#8a8a4e}
+[data-theme=goblin] .dialog-leaf svg{color:#6b7a3e}
+[data-theme=goblin] .primary{background:#5b6a3c;color:#f4efdb}[data-theme=goblin] .primary:hover{background:#4a5730}
+[data-theme=goblin] .secondary{background:#ded4b6;color:#5d5c46}
+/* The fork's switch rides beside the sound toggle, and goes the same way it does when space runs out. */
+@media(max-width:760px){#theme{display:none}}
