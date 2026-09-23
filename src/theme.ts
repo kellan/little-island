@@ -4,7 +4,7 @@
  * The simulation is the same either way: same seed, same trees, same save. A
  * theme is only what the island is made of and what its people say, so the
  * default — Robin's bright little island — is untouched and the goblin fork in
- * docs/GOBLINS.md gets somewhere to be looked at rather than only read.
+ * docs/GOBLIN_FORK.md gets somewhere to be looked at rather than only read.
  *
  * Nothing here is game logic. A theme is picked once per page load, because
  * scene materials are built at import time and swapping them live would mean
@@ -121,7 +121,7 @@ const island: Theme = {
 
 /**
  * The goblin fork, dressed. Everything here answers something written down in
- * docs/GOBLINS.md: peat light and a bog underfoot for the decay layer, trees too
+ * docs/GOBLIN_FORK.md: peat light and a bog underfoot for the decay layer, trees too
  * big to fell that grow fungus instead, a settlement that is three sticks and a
  * covered pit, and a HUD that grumbles rather than warns.
  *

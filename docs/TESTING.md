@@ -101,7 +101,7 @@ quietly failed to build its scene would still pass every unit test: that the
 island boots wearing it and is the same simulation underneath, that a goblin can
 still be sent at a tree and the whole loop reads in her own words, and that the
 switch changes the dressing without touching the save. What the dressing is and
-what each of its decisions answers is at the end of [GOBLINS.md](GOBLINS.md).
+what each of its decisions answers is at the end of [GOBLIN_FORK.md](GOBLIN_FORK.md).
 
 `src/theme.test.ts` covers the part of a theme that has no pixels: which
 dressing a URL and a remembered choice resolve to, and that neither theme is

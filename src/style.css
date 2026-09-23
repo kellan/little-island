@@ -7,7 +7,7 @@
 @media(max-width:760px){.topbar{left:18px;right:18px;top:18px}.brand{font-size:14px;letter-spacing:1px}.brand small{font-size:9px;max-width:170px;line-height:1.5}.brand-mark{display:none}.chapter{left:18px;top:89px}.objective{padding:10px 12px;max-width:300px}.objective strong{font-size:13px}.objective span:not(.objective-icon){font-size:12px}.bottom{left:14px;right:14px;bottom:42px;align-items:flex-end}.villager-card{gap:8px;padding:9px}.portrait,.villager-name>span,.card-divider{display:none}.villager-status{font-size:12px;min-width:0;max-width:156px;line-height:1.35}.villager-name{font-size:15px}.focus-button{display:grid;min-width:32px;padding:4px}.controls{padding:5px;gap:0}.controls .icon-button{min-width:32px;min-height:40px}.controls #reset{display:grid}.controls .divider{display:none}.controls #sound{display:none}.speed{min-width:30px;font-size:14px}.camera-hint{font-size:10px;letter-spacing:0;gap:6px}.resource>span{display:none}.toast{font-size:13px;bottom:130px}.top-right{padding:7px;gap:8px}}
 @media(max-width:400px){.villager-status{max-width:132px}.camera-hint span:last-child,.camera-hint i:last-of-type{display:none}.objective{max-width:280px}.brand small{max-width:145px}}
 
-/* The goblin fork (docs/GOBLINS.md), dressed. Colour only: every size, gap and
+/* The goblin fork (docs/GOBLIN_FORK.md), dressed. Colour only: every size, gap and
    breakpoint above still owns the layout, so the fork cannot break the HUD's
    responsive behaviour. Oatmeal panels and peat ink, with the ember colour used
    for anything that means work is happening. */

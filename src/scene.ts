@@ -4,7 +4,7 @@
  * between simulation ticks so a 30 Hz world moves smoothly on a 60 Hz screen.
  *
  * Two dressings share this file. The bright island is the default and is drawn
- * exactly as it always was; the goblin fork (docs/GOBLINS.md) swaps the palette
+ * exactly as it always was; the goblin fork (docs/GOBLIN_FORK.md) swaps the palette
  * and adds what that fork asks for — bog, decay, trees too big to fell, and a
  * settlement that is three sticks and a covered pit. Both read the same world,
  * which is the point: the fork is a visual treatment, not another game.

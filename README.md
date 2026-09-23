@@ -34,7 +34,7 @@ That runs the simulation tests, typechecks the project, creates `dist/` for stat
 The island comes in two visual treatments, chosen by the swap button in the controls or by
 opening `?goblin` (or `?theme=island`) directly; the choice is remembered in this browser.
 The default is the bright island Robin lives on. The other is the goblin fork from
-[docs/GOBLINS.md](docs/GOBLINS.md), drawn: peat light and close fog, trees twice as tall
+[docs/GOBLIN_FORK.md](docs/GOBLIN_FORK.md), drawn: peat light and close fog, trees twice as tall
 and no wider because goblins cannot fell one, shelf fungus up the trunks and toadstools
 round the feet, the bog and mushroom-bed sites the bright island never drew, a stump that
 grows the next crop once its tree is worked out, a settlement that is a covered pit and
@@ -47,7 +47,7 @@ live in `src/theme.ts`; `src/scene.ts` branches on them where the fork needs dif
 geometry, and `src/style.css` carries a colour-only `[data-theme=goblin]` block so the
 HUD's layout and breakpoints stay in one place. Nothing in `src/sim/` knows a theme exists.
 What each decision on screen is answering is written up at the end of
-[docs/GOBLINS.md](docs/GOBLINS.md).
+[docs/GOBLIN_FORK.md](docs/GOBLIN_FORK.md).
 
 The island saves to localStorage every five seconds, on deliveries and on leaving. Reload resumes the job, the work list, and any order still waiting in the inbox. All geometry is procedural.
 
@@ -143,7 +143,9 @@ The rulebook, the tick, the command and event vocabulary, the save format and th
 
 Where production is going — foraging, depletion, multi-input recipes, upkeep and farms, and the one abstraction that covers them — is in [docs/PRODUCTION.md](docs/PRODUCTION.md), replying to the design brief in [docs/RESOURCES.md](docs/RESOURCES.md).
 
-Two forked explorations, neither of them decisions, sit beside that brief. [docs/GOBLINS.md](docs/GOBLINS.md) asks what changes if the villagers are goblins rather than people. [docs/LINEAGE.md](docs/LINEAGE.md) branches off the goblin fork again: goblins shaped by the work they do, elders as the only way a skill is handed on, and comfort as the thing that carries a settlement's past into its future. No mechanic from either is implemented; the goblin fork does have a visual treatment you can open, described above and at the end of its document.
+**The working design reference is [docs/GOBLINS.md](docs/GOBLINS.md)**: everything designed to date, read on the assumption that the villagers are goblins — elders raising the children, comfort as the growth currency, tending rather than tilling, fermentation as the spine — with what is decided, suggested and open marked apart, and the open questions in priority order. Start there.
+
+It draws on two forked explorations that sit beside that brief. [docs/GOBLIN_FORK.md](docs/GOBLIN_FORK.md) asks what changes if the villagers are goblins rather than people. [docs/LINEAGE.md](docs/LINEAGE.md) branches off the goblin fork again: goblins shaped by the work they do, elders as the only way a skill is handed on, and comfort as the thing that carries a settlement's past into its future. No mechanic from either is implemented; the goblin fork does have a visual treatment you can open, described above and at the end of its document.
 
 The convex mainland permits direct walking paths without navigation machinery; decorative tree foliage is not a path obstacle in this deliberately narrow prototype.
 

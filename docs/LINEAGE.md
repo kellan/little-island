@@ -1,9 +1,12 @@
 # The lineage fork
 
 Status: **a forked exploration, not a decision.** This branches off
-[GOBLINS.md](GOBLINS.md) and assumes the goblin fork is taken. It asks what happens if
+[GOBLIN_FORK.md](GOBLIN_FORK.md) and assumes the goblin fork is taken. It asks what happens if
 goblins are Lamarckian: shaped by their work, and able to hand that shape on. Nothing here
 is implemented. Where it says "open", do not guess — ask.
+
+*The combined working reference is [GOBLINS.md](GOBLINS.md)*, which folds this fork and the
+goblin fork into one design. This document keeps the original reasoning.
 
 It is written up because the idea turned out to supply something [RESOURCES.md](RESOURCES.md)
 says the design is missing — a settlement skill concept — and to give comfort, the goblin
@@ -96,7 +99,7 @@ Nobody can teach a trade until somebody has muddled through a working life of it
 smelter is slow and grumbly and works from scavenged iron. Her apprentices are the real
 thing.
 
-This makes the bloomery "graduation" in GOBLINS.md **generational**, which is a better moment
+This makes the bloomery "graduation" in GOBLIN_FORK.md **generational**, which is a better moment
 still. It also means a lapsed line is recoverable: someone can always be the first again.
 
 ## The core verb: protecting the line
@@ -150,13 +153,13 @@ This is how the player steers which lines grow. Comfort stops being a village-wi
 becomes targeted investment: you are choosing which old goblin's knowledge the settlement
 carries forward, and how faithfully.
 
-It also answers the open question in GOBLINS.md, "comfort needs a shape." Under this fork
+It also answers the open question in GOBLIN_FORK.md, "comfort needs a shape." Under this fork
 comfort is a **per-goblin state**, concentrated in elders, and it has a job beyond being a
 sink: it converts the settlement's past into its future.
 
 *Suggested:* RESOURCES.md has three sinks, the table, the site, and the hand. This may be the
 fourth: **the bench**. Whether it sits beside the table or replaces it is the same open
-question GOBLINS.md already asks.
+question GOBLIN_FORK.md already asks.
 
 *Suggested:* elder wants create **directed demand** — a specific good to a specific goblin.
 Elders do not fetch. Under the pull model that makes this an errand, or, more charmingly, the
